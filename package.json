@@ -1,0 +1,63 @@
+{
+  "name": "concornext",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite dev",
+    "build": "vite build",
+    "preview": "vite build && wrangler dev -c dist/server/wrangler.json --persist-to .wrangler/state",
+    "deploy": "vite build && wrangler deploy",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "cf-typegen": "wrangler types --strict-vars=false src/worker-configuration.d.ts",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate:local": "wrangler d1 migrations apply concornext --local",
+    "db:migrate:remote": "wrangler d1 migrations apply concornext --remote",
+    "data:download": "tsx scripts/download-data.ts",
+    "data:build": "tsx scripts/build-import.ts",
+    "data:import:local": "tsx scripts/apply-import.ts --local",
+    "data:import:remote": "tsx scripts/apply-import.ts --remote",
+    "admin:invite": "tsx scripts/create-invite.ts"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^1.3.0",
+    "@kobalte/core": "^0.13.14",
+    "@simplewebauthn/browser": "^14.0.0",
+    "@simplewebauthn/server": "^14.0.3",
+    "@solidjs/router": "^1.0.0",
+    "@solidjs/start": "^2.1.0",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "drizzle-orm": "^0.45.4",
+    "lucide-solid": "^1.61.0",
+    "solid-js": "^1.9.17",
+    "tailwind-merge": "^3.7.0",
+    "tailwindcss-animate": "^1.0.7",
+    "uqr": "^0.1.3",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@cloudflare/vite-plugin": "^1.65.0",
+    "@cloudflare/workers-types": "^5.20261026.1",
+    "@tailwindcss/vite": "^4.3.3",
+    "@types/node": "^26.6.5",
+    "drizzle-kit": "^0.31.11",
+    "tailwindcss": "^4.3.3",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.5",
+    "vitest": "^5.0.5",
+    "wrangler": "^4.153.0"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild",
+      "workerd",
+      "sharp"
+    ],
+    "overrides": {
+      "miniflare": "5.20261023.0-beta",
+      "workerd": "1.20261023.1"
+    }
+  }
+}

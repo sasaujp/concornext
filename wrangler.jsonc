@@ -1,0 +1,20 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "concornext",
+  "main": "./src/entry-server.tsx",
+  "compatibility_date": "2026-10-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": { "enabled": true },
+  "vars": {
+    // Claude Haiku model ID (override per environment if needed)
+    "ANTHROPIC_MODEL": "claude-haiku-5-5"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "concornext",
+      "database_id": "c427b481-8b8d-48e7-ba71-95832b83095c",
+      "migrations_dir": "drizzle"
+    }
+  ]
+}

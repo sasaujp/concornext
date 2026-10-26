@@ -1,0 +1,38 @@
+dist
+.wrangler
+.output
+.vercel
+.netlify
+.vinxi
+app.config.timestamp_*.js
+
+# Environment
+.env
+.env*.local
+
+# dependencies
+/node_modules
+
+# IDEs and editors
+/.idea
+.project
+.classpath
+*.launch
+.settings/
+
+# Temp
+gitignore
+
+# System Files
+.DS_Store
+Thumbs.db
+
+# Local secrets (wrangler)
+.dev.vars
+
+# STEPBible source files and generated SQL (re-create with pnpm data:download / data:build)
+data/raw/*.txt
+data/sql/
+
+# Browser automation artefacts
+.playwright-mcp/
