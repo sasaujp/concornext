@@ -97,12 +97,9 @@ describe.skipIf(!available)("transliteration search keys", () => {
 });
 
 describe.skipIf(!available)("lemma memos", () => {
-  it("seeds the sample notebook locations and keys them by Strong's number", () => {
-    const rows = d1<{ strongs_id: string; note: string }>(
-      `SELECT n.strongs_id, n.note FROM lemma_notes n JOIN lemmas l ON l.strongs_id = n.strongs_id WHERE n.strongs_id IN ('G3056','G2638','G4637','G3439','G1834','G4592') ORDER BY n.strongs_id`,
-    );
-    expect(rows.length).toBe(6);
-    expect(rows.find(r => r.strongs_id === "G3056")?.note).toBe("ノート1巻 p.4-7");
+  it("keeps memos per user, book and lemma", () => {
+    const cols = d1<{ name: string; pk: number }>(`SELECT name, pk FROM pragma_table_info('lemma_notes') ORDER BY pk`).filter(c => c.pk > 0);
+    expect(cols.map(c => c.name)).toEqual(["user_id", "book", "strongs_id"]);
   });
 });
 

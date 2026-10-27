@@ -9,7 +9,12 @@ import { BOOKS, bookByCode, bookByOrd } from "~/lib/books";
 import { containsGreek, normalizeGreek, normalizeLatin, parseStrongs } from "~/lib/greek";
 import type { Db } from "./db";
 
-export type LemmaSort = "freq" | "alpha";
+export type LemmaSort = "freq" | "alpha" | "memo";
+
+export interface LemmaNote {
+  book: string;
+  note: string;
+}
 
 export interface LemmaListItem {
   id: number;
@@ -22,7 +27,8 @@ export interface LemmaListItem {
   glossJa: string | null;
   occurrenceCount: number;
   verseCount: number;
-  note: string | null;
+  /** The user's memos for this lemma: one for the scoped book, or one per book when unscoped. */
+  notes: LemmaNote[];
 }
 
 export interface LemmaSearchResult {
@@ -46,8 +52,46 @@ const listColumns = {
   glossJa: lemmas.glossJa,
   occurrenceCount: lemmas.occurrenceCount,
   verseCount: lemmas.verseCount,
-  note: lemmaNotes.note,
 };
+
+// Memos are aggregated per lemma as "book<US>note<RS>book<US>note…" (unit/record separators).
+const US = "\u001f";
+const RS = "\u001e";
+
+/** One row per lemma with the user's memos (optionally only for one book). */
+function userNotes(db: Db, userId: string, book: string | null) {
+  return db
+    .select({
+      strongsId: lemmaNotes.strongsId,
+      notes: sql<string>`group_concat(${lemmaNotes.book} || char(31) || ${lemmaNotes.note}, char(30))`.as("notes"),
+    })
+    .from(lemmaNotes)
+    .where(and(eq(lemmaNotes.userId, userId), book ? eq(lemmaNotes.book, book) : undefined))
+    .groupBy(lemmaNotes.strongsId)
+    .as("user_notes");
+}
+
+function parseNotes(raw: string | null): LemmaNote[] {
+  if (!raw) return [];
+  return raw
+    .split(RS)
+    .map(r => {
+      const i = r.indexOf(US);
+      return { book: r.slice(0, i), note: r.slice(i + 1) };
+    })
+    .sort((a, b) => (bookByCode(a.book)?.ord ?? 99) - (bookByCode(b.book)?.ord ?? 99));
+}
+
+const noteCollator = new Intl.Collator("ja", { numeric: true, sensitivity: "base" });
+
+/** Natural order for memo text ("p.4" before "p.15"); unscoped lists order by book first. */
+export function compareNotes(a: LemmaNote[], b: LemmaNote[]): number {
+  const x = a[0];
+  const y = b[0];
+  if (!x || !y) return x ? -1 : y ? 1 : 0;
+  const byBook = (bookByCode(x.book)?.ord ?? 99) - (bookByCode(y.book)?.ord ?? 99);
+  return byBook || noteCollator.compare(x.note, y.note);
+}
 
 export async function searchLemmas(
   db: Db,
@@ -64,6 +108,8 @@ export async function searchLemmas(
   },
 ): Promise<LemmaSearchResult> {
   const q = (opts.q ?? "").trim();
+  const book = opts.book ? bookByCode(opts.book) : undefined;
+  const notesSq = userNotes(db, opts.userId, book?.code ?? null);
   const pageSize = Math.min(Math.max(opts.pageSize ?? 50, 1), 100);
   const page = Math.max(opts.page ?? 1, 1);
   let where: SQL | undefined;
@@ -100,17 +146,18 @@ export async function searchLemmas(
           ),
         ]
       : [];
-    where = or(...translit, like(lemmas.gloss, `%${q}%`), like(lemmas.glossJa, `%${q}%`), like(lemmaNotes.note, `%${q}%`));
+    where = or(...translit, like(lemmas.gloss, `%${q}%`), like(lemmas.glossJa, `%${q}%`), like(notesSq.notes, `%${q}%`));
   }
 
   if (opts.letter) {
     // lemma_plain is accent-free lowercase, so the initial is simply its first character.
     where = and(where, like(lemmas.lemmaPlain, `${normalizeGreek(opts.letter)}%`));
   }
-  if (opts.withNote) where = and(where, isNotNull(lemmaNotes.note));
+  if (opts.withNote) where = and(where, isNotNull(notesSq.notes));
+  // Memo order only makes sense among lemmas that have memos.
+  const sort: LemmaSort = opts.sort === "memo" && !opts.withNote ? "alpha" : (opts.sort ?? "alpha");
 
   // Book scope: only lemmas that occur in the book, with counts (and frequency order) within it.
-  const book = opts.book ? bookByCode(opts.book) : undefined;
   const bookCounts = book
     ? db
         .select({
@@ -123,26 +170,40 @@ export async function searchLemmas(
         .groupBy(occurrences.lemmaId)
         .as("book_counts")
     : null;
-  const columns = bookCounts ? { ...listColumns, occurrenceCount: bookCounts.occ, verseCount: bookCounts.verses } : listColumns;
+  const columns = {
+    ...listColumns,
+    ...(bookCounts ? { occurrenceCount: bookCounts.occ, verseCount: bookCounts.verses } : {}),
+    notesRaw: notesSq.notes,
+  };
   const scoped = <T extends SQLiteSelect>(qb: T) => {
-    qb.leftJoin(lemmaNotes, and(eq(lemmaNotes.strongsId, lemmas.strongsId), eq(lemmaNotes.userId, opts.userId)));
+    qb.leftJoin(notesSq, eq(notesSq.strongsId, lemmas.strongsId));
     if (bookCounts) qb.innerJoin(bookCounts, eq(bookCounts.lemmaId, lemmas.id));
     return qb.where(where);
   };
 
+  type Row = Omit<LemmaListItem, "notes"> & { notesRaw: string | null };
+  const toItem = ({ notesRaw, ...r }: Row): LemmaListItem => ({ ...r, notes: parseNotes(notesRaw) });
+
+  if (sort === "memo") {
+    // Natural ordering of memo text isn't expressible in SQLite; memo-filtered sets are small, so sort here.
+    const all = ((await scoped(db.select(columns).from(lemmas).$dynamic())) as Row[]).map(toItem);
+    all.sort((a, b) => compareNotes(a.notes, b.notes) || a.greekLemma.localeCompare(b.greekLemma));
+    return { items: all.slice((page - 1) * pageSize, page * pageSize), total: all.length, page, pageSize, mode, book: book?.code ?? null };
+  }
+
   const order =
-    opts.sort === "alpha"
+    sort === "alpha"
       ? [asc(lemmas.lemmaPlain), asc(lemmas.strongsId)]
       : [desc(bookCounts ? bookCounts.occ : lemmas.occurrenceCount), asc(lemmas.lemmaPlain)];
 
-  const [items, [{ total }]] = await Promise.all([
+  const [rows, [{ total }]] = await Promise.all([
     scoped(db.select(columns).from(lemmas).$dynamic())
       .orderBy(...order)
       .limit(pageSize)
-      .offset((page - 1) * pageSize) as Promise<LemmaListItem[]>,
+      .offset((page - 1) * pageSize) as Promise<Row[]>,
     scoped(db.select({ total: sql<number>`count(*)` }).from(lemmas).$dynamic()) as Promise<{ total: number }[]>,
   ]);
-  return { items, total, page, pageSize, mode, book: book?.code ?? null };
+  return { items: rows.map(toItem), total, page, pageSize, mode, book: book?.code ?? null };
 }
 
 export interface LemmaDetail extends LemmaListItem {
@@ -153,13 +214,22 @@ export interface LemmaDetail extends LemmaListItem {
 }
 
 export async function getLemmaDetail(db: Db, strongsId: string, userId: string): Promise<LemmaDetail | null> {
-  const [row] = await db
-    .select({ ...listColumns, strongsBase: lemmas.strongsBase, lexPos: lemmas.lexPos, definitionHtml: lemmaDefinitions.definitionHtml })
+  const notesSq = userNotes(db, userId, null);
+  const [found] = await db
+    .select({
+      ...listColumns,
+      notesRaw: notesSq.notes,
+      strongsBase: lemmas.strongsBase,
+      lexPos: lemmas.lexPos,
+      definitionHtml: lemmaDefinitions.definitionHtml,
+    })
     .from(lemmas)
     .leftJoin(lemmaDefinitions, eq(lemmaDefinitions.lemmaId, lemmas.id))
-    .leftJoin(lemmaNotes, and(eq(lemmaNotes.strongsId, lemmas.strongsId), eq(lemmaNotes.userId, userId)))
+    .leftJoin(notesSq, eq(notesSq.strongsId, lemmas.strongsId))
     .where(eq(lemmas.strongsId, strongsId));
-  if (!row) return null;
+  if (!found) return null;
+  const { notesRaw, ...rest } = found;
+  const row = { ...rest, notes: parseNotes(notesRaw) };
   const byBook = await db
     .select({
       bookOrd: occurrences.bookOrd,
@@ -376,20 +446,23 @@ export { BOOKS };
 
 export const NOTE_MAX_LENGTH = 200;
 
-/** Saves the one-line memo for a lemma; an empty memo deletes it. Returns the stored value. */
-export async function saveLemmaNote(db: Db, userId: string, strongsId: string, raw: string): Promise<string | null> {
+/** Saves the user's one-line memo for a lemma in one book; an empty memo deletes it. Returns the stored value. */
+export async function saveLemmaNote(db: Db, userId: string, bookCode: string, strongsId: string, raw: string): Promise<string | null> {
+  const book = bookByCode(bookCode);
+  if (!book) throw new Error(`Unknown book ${bookCode}`);
   const [lemma] = await db.select({ id: lemmas.id }).from(lemmas).where(eq(lemmas.strongsId, strongsId));
   if (!lemma) throw new Error(`Unknown lemma ${strongsId}`);
   const note = raw.replace(/\s+/g, " ").trim().slice(0, NOTE_MAX_LENGTH);
+  const key = and(eq(lemmaNotes.userId, userId), eq(lemmaNotes.book, book.code), eq(lemmaNotes.strongsId, strongsId));
   if (!note) {
-    await db.delete(lemmaNotes).where(and(eq(lemmaNotes.userId, userId), eq(lemmaNotes.strongsId, strongsId)));
+    await db.delete(lemmaNotes).where(key);
     return null;
   }
   const updatedAt = new Date().toISOString();
   await db
     .insert(lemmaNotes)
-    .values({ userId, strongsId, note, updatedAt })
-    .onConflictDoUpdate({ target: [lemmaNotes.userId, lemmaNotes.strongsId], set: { note, updatedAt } });
+    .values({ userId, book: book.code, strongsId, note, updatedAt })
+    .onConflictDoUpdate({ target: [lemmaNotes.userId, lemmaNotes.book, lemmaNotes.strongsId], set: { note, updatedAt } });
   return note;
 }
 

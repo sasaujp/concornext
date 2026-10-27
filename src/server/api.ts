@@ -50,8 +50,8 @@ export async function updateScopeBook(code: string | null) {
   return setScopeBook(getDb(), requireUser().id, code);
 }
 
-export async function updateLemmaNote(strongsId: string, note: string) {
-  return saveLemmaNote(getDb(), requireUser().id, strongsId, note);
+export async function updateLemmaNote(strongsId: string, book: string, note: string) {
+  return saveLemmaNote(getDb(), requireUser().id, book, strongsId, note);
 }
 
 export async function fetchLemmaDetail(strongsId: string) {

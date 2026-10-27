@@ -92,7 +92,7 @@ function LemmaHeader(props: { lemma: LemmaDetail }) {
           <span class="sr-only">（新しいタブで開く）</span>
         </Button>
       </div>
-      <NoteEditor strongsId={props.lemma.strongsId} note={props.lemma.note} />
+      <NoteEditor strongsId={props.lemma.strongsId} notes={props.lemma.notes} />
       <Show when={props.lemma.definitionHtml}>
         <details class="rounded-md border bg-muted/40 p-3 text-sm">
           <summary class="cursor-pointer select-none font-medium">辞書（TBESG / Abbott-Smith）</summary>

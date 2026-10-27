@@ -14,7 +14,7 @@ import {
   type RegistrationResponseJSON,
 } from "@simplewebauthn/server";
 import { and, count, eq, gt, isNull, lt } from "drizzle-orm";
-import { authChallenges, authTokens, lemmaNotes, passkeys, sessions, users } from "~/db/schema";
+import { authChallenges, authTokens, passkeys, sessions, users } from "~/db/schema";
 import type { Db } from "./db";
 
 export interface SessionUser {
@@ -274,11 +274,6 @@ export async function finishRegistration(
       await db.insert(users).values({ id: userId, username: data.username, isAdmin, createdAt: t });
     } catch {
       throw new AuthError("このユーザー名はすでに使われています。", 409);
-    }
-    if (isAdmin) {
-      // Memos and settings from before accounts existed belong to the first administrator.
-      const [{ admins }] = await db.select({ admins: count() }).from(users).where(eq(users.isAdmin, true));
-      if (admins === 1) await db.update(lemmaNotes).set({ userId }).where(eq(lemmaNotes.userId, ""));
     }
   } else {
     const [u] = await db.select({ isAdmin: users.isAdmin }).from(users).where(eq(users.id, userId));

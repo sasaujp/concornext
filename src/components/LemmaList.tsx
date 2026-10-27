@@ -10,7 +10,7 @@ import { GREEK_ALPHABET } from "~/lib/greek";
 import { bookByCode } from "~/lib/books";
 import { lemmaListQuery, scopeBookQuery } from "~/lib/queries";
 import { cn } from "~/lib/utils";
-import { type LexiconParams, lexiconHref, readParams } from "~/lib/url";
+import { defaultSort, type LexiconParams, lexiconHref, readParams } from "~/lib/url";
 
 const MODE_LABEL = { all: "", strongs: "Strong's 番号で検索", greek: "ギリシャ語（アクセント無視・語形一致を含む）", latin: "転写（見出し語・活用形）・英語の語義で検索" } as const;
 
@@ -64,7 +64,7 @@ export function LemmaList() {
             size="sm"
             variant="outline"
             value={params().sort}
-            onChange={v => v && setSearch({ sort: v === "alpha" ? undefined : v, page: undefined })}
+            onChange={v => v && setSearch({ sort: v === defaultSort(params().memo) ? undefined : v, page: undefined })}
             aria-label="並び順"
           >
             <ToggleGroupItem value="alpha" class="h-8 px-2.5 text-xs">
@@ -73,12 +73,18 @@ export function LemmaList() {
             <ToggleGroupItem value="freq" class="h-8 px-2.5 text-xs">
               出現頻度順
             </ToggleGroupItem>
+            <Show when={params().memo}>
+              <ToggleGroupItem value="memo" class="h-8 px-2.5 text-xs">
+                メモ順
+              </ToggleGroupItem>
+            </Show>
           </ToggleGroup>
           <Toggle
             size="sm"
             variant="outline"
             pressed={params().memo}
-            onChange={on => setSearch({ memo: on ? "1" : undefined, page: undefined })}
+            // Turning the memo filter on/off also resets the order to that mode's default (memo order / alphabetical).
+            onChange={on => setSearch({ memo: on ? "1" : undefined, sort: undefined, page: undefined })}
             class="h-8 gap-1 px-2.5 text-xs data-[pressed]:bg-primary data-[pressed]:text-primary-foreground"
             aria-label="メモのある語だけ表示"
           >
@@ -163,11 +169,16 @@ export function LemmaList() {
                               </span>
                             </Show>
                           </span>
-                          <Show when={item.note}>
+                          <Show when={item.notes.length}>
                             <span class="mt-0.5 flex items-center gap-1 truncate text-xs text-muted-foreground">
                               <NotebookPen class="size-3 shrink-0" aria-hidden="true" />
                               <span class="sr-only">メモ:</span>
-                              <span class="truncate">{item.note}</span>
+                              <span class="truncate">
+                                {/* Scoped to one book: just that book's memo; otherwise every book's, labelled. */}
+                                {list()?.book
+                                  ? item.notes[0].note
+                                  : item.notes.map(n => `${bookByCode(n.book)?.ja ?? n.book}: ${n.note}`).join(" ／ ")}
+                              </span>
                             </span>
                           </Show>
                         </span>

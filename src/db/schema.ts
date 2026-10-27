@@ -128,20 +128,20 @@ export const aiAnalyses = sqliteTable(
 );
 
 /**
- * Each user's one-line memo per lemma, typically where the word is written up in their own
- * exegetical notebook (e.g. "ノート1巻 p.4-7"). Keyed by extended Strong's number (not lemma id) so
- * memos survive data re-imports. user_id "" marks memos from before accounts existed; the first
- * administrator claims them on registration.
+ * Each user's one-line memo per lemma *and book* (memos for different books are kept apart),
+ * typically where the word is written up in that book's exegetical notebook (e.g. "ノート1巻 p.4-7").
+ * Keyed by extended Strong's number (not lemma id) so memos survive data re-imports.
  */
 export const lemmaNotes = sqliteTable(
   "lemma_notes",
   {
     userId: text("user_id").notNull(),
+    book: text("book").notNull(), // TAGNT book code, e.g. Jhn
     strongsId: text("strongs_id").notNull(),
     note: text("note").notNull(),
     updatedAt: text("updated_at").notNull(),
   },
-  t => [primaryKey({ columns: [t.userId, t.strongsId] })],
+  t => [primaryKey({ columns: [t.userId, t.book, t.strongsId] }), index("lemma_notes_user_strongs_idx").on(t.userId, t.strongsId)],
 );
 
 /** Per-user settings (key/value), e.g. the book chosen in the header. */

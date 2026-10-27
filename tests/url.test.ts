@@ -13,6 +13,15 @@ describe("lexicon URL state", () => {
     expect(readParams(Object.fromEntries(new URLSearchParams(lexiconHref(state).slice(2))))).toEqual(state);
   });
 
+  it("defaults to memo order when the memo filter is on", () => {
+    expect(readParams({ memo: "1" }).sort).toBe("memo");
+    expect(lexiconHref(readParams({ memo: "1" }))).toBe("/?memo=1");
+    expect(readParams({ memo: "1", sort: "alpha" }).sort).toBe("alpha");
+    expect(lexiconHref(readParams({ memo: "1", sort: "alpha" }))).toBe("/?sort=alpha&memo=1");
+    // Memo order without the memo filter falls back to alphabetical.
+    expect(readParams({ sort: "memo" }).sort).toBe("alpha");
+  });
+
   it("ignores invalid letters", () => {
     expect(readParams({ l: "x" }).letter).toBeNull();
     expect(readParams({ l: "ς" }).letter).toBeNull();

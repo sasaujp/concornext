@@ -57,6 +57,13 @@
       "when": 1793064113589,
       "tag": "0007_gloss_ja",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1793065950164,
+      "tag": "0008_notes_per_book",
+      "breakpoints": true
     }
   ]
 }

@@ -122,7 +122,7 @@ pnpm admin:invite --remote --url https://concornext.<account>.workers.dev --admi
 
 ```
 src/
-  routes/index.tsx           語彙一覧 + 見出し語詳細 + コンコルダンス（状態は URL に保持: q, sort, l, memo, page, s, book, cp）
+  routes/index.tsx           語彙一覧 + 見出し語詳細 + コンコルダンス（状態は URL に保持: q, sort, l, memo, page, s, book, cp。sort は alpha / freq / memo）
   routes/verse/[ref].tsx     節ページ: 本文・形態素（確定データ）・アオリスト一覧・AI 解析（?s=&w=&from=）
   components/                LemmaList, LemmaPanel, GreekVerse, MorphBadges, AnalysisView, DataInfo, ui/（Solid UI）
   lib/morph.ts               TAGNT（Robinson 形式）形態素コードのデコーダ。isAorist の判定はここだけで行う
@@ -145,7 +145,6 @@ tests/                       Vitest
 - **端末の追加**：ログイン済みの端末のアカウント画面で QR コードを表示し、新しい端末で読み取ってパスキーを追加します（10 分間有効、1 回限り）。
 - **セッション**は HttpOnly cookie（30 日）です。D1 にはトークンの SHA-256 だけを保存します。招待・端末追加のトークンも同様にハッシュで保存します。
 - **アクセス制限**：`src/middleware.ts` が全リクエストでセッションを確認します。未ログインのページ遷移は `/login` へリダイレクトし、サーバー関数の呼び出しは 401 で拒否します。認証用の JSON API は `src/routes/api/auth/[...path].ts` にあります。
-- **既存データの引き継ぎ**：アカウント導入前のメモ（`user_id = ''`）は、最初に登録した管理者のものになります。
 - **テスト**：`tests/e2e/auth.test.ts` は、ソフトウェア認証器（P-256 鍵による本物の WebAuthn 署名）で、招待→登録→ログアウト→ログイン→端末追加→不正なパスキーの拒否→別サイトからのリクエストの拒否を、起動中のアプリに対して確認します（`E2E_BASE_URL=http://localhost:5199 pnpm exec vitest run tests/e2e`）。
 
 ### 学習する書（ヘッダー）
@@ -154,7 +153,12 @@ tests/                       Vitest
 
 ### メモ
 
-`lemma_notes` テーブルにユーザー ID と Strong's 番号をキーとして保存します（lemma の ID ではないので、データを取り込み直しても消えません。`data:import` もこのテーブルには触れません）。プロトタイプにあった 6 語の記載場所は、マイグレーション `0003_seed_sample_notes.sql` で初期値として 1 回だけ入ります（`INSERT OR IGNORE` のため、あとで編集した内容を上書きしません）。
+メモは「ユーザー × 書 × 見出し語」ごとに 1 行です（`lemma_notes`。キーは user_id・book・strongs_id）。書ごとのノートの記載場所（例: 「ノート1巻 p.4-7」）を書く想定で、書をまたいで混ざらないようにしています。
+
+- ヘッダーで書を選んでいるときは、その書のメモだけを表示・編集します。
+- 「すべての書」のときは、全書のメモを書名付き（例: 「ヨハネ: ノート1巻 p.4-7」）で表示します（閲覧のみ）。
+- 「メモあり」で絞り込むと、並び順の既定は「メモ順」（メモの内容の昇順。数字は数として比べるので「p.4」が「p.15」より前）になります。
+- Strong's 番号をキーにしているので、データを取り込み直してもメモは消えません。
 
 ### AI 解析の設計
 
