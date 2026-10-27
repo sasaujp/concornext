@@ -157,8 +157,10 @@ export function LemmaList() {
                                 ({item.altLemma})
                               </span>
                             </Show>
-                            <Show when={item.gloss}>
-                              <span class="ml-2">{item.gloss}</span>
+                            <Show when={item.glossJa ?? item.gloss}>
+                              <span class="ml-2" title={item.gloss ?? undefined}>
+                                {item.glossJa ?? item.gloss}
+                              </span>
                             </Show>
                           </span>
                           <Show when={item.note}>

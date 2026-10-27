@@ -148,7 +148,12 @@ export default function VersePage() {
                                     <Badge variant="outline" class="font-mono">
                                       {p.strongsId}
                                     </Badge>
-                                    <span>{p.gloss}</span>
+                                    <span>{p.glossJa ?? p.gloss}</span>
+                                    <Show when={p.glossJa && p.gloss}>
+                                      <span class="text-xs text-muted-foreground" lang="en">
+                                        {p.gloss}
+                                      </span>
+                                    </Show>
                                   </div>
                                   <MorphBadges code={p.morphology} />
                                 </div>
@@ -202,7 +207,17 @@ export default function VersePage() {
                   </div>
 
                   <Show when={selectedPos() && targetStrongs()} keyed>
-                    {_ => <AnalysisSection book={v().book} chapter={v().chapter} verse={v().verse} strongsId={targetStrongs()!} position={selectedPos()!} tokens={v().tokens} />}
+                    {_ => (
+                      <AnalysisSection
+                        book={v().book}
+                        chapter={v().chapter}
+                        verse={v().verse}
+                        strongsId={targetStrongs()!}
+                        position={selectedPos()!}
+                        tokens={v().tokens}
+                        english={() => english()?.verses[`${v().book}.${v().chapter}.${v().verse}`]}
+                      />
+                    )}
                   </Show>
                 </>
               )}
@@ -214,7 +229,15 @@ export default function VersePage() {
   );
 }
 
-function AnalysisSection(props: { book: string; chapter: number; verse: number; strongsId: string; position: number; tokens: import("~/lib/queries").Token[] }) {
+function AnalysisSection(props: {
+  book: string;
+  chapter: number;
+  verse: number;
+  strongsId: string;
+  position: number;
+  tokens: import("~/lib/queries").Token[];
+  english?: () => string | null | undefined;
+}) {
   const req = () => ({ book: props.book, chapter: props.chapter, verse: props.verse, strongsId: props.strongsId, position: props.position });
   const reqKey = () => JSON.stringify(req());
   const info = createAsync(() => appInfoQuery());
@@ -275,7 +298,14 @@ function AnalysisSection(props: { book: string; chapter: number; verse: number; 
               )}
             </Match>
             <Match when={result()?.status === "ok" && (result() as Extract<AnalysisResponse, { status: "ok" }>)}>
-              {r => <AnalysisView result={r()} tokens={props.tokens} />}
+              {r => (
+                <AnalysisView
+                  result={r()}
+                  tokens={props.tokens}
+                  english={props.english}
+                  reference={`${displayRef(props.book, props.chapter, props.verse)}（${bookByCode(props.book)?.en} ${props.chapter}:${props.verse}）`}
+                />
+              )}
             </Match>
             <Match when={true}>
               <div class="flex flex-col items-start gap-3">

@@ -105,3 +105,12 @@ describe.skipIf(!available)("lemma memos", () => {
     expect(rows.find(r => r.strongs_id === "G3056")?.note).toBe("ノート1巻 p.4-7");
   });
 });
+
+describe.skipIf(!available)("Japanese glosses", () => {
+  it("has a Japanese gloss for every lemma", () => {
+    const [r] = d1<{ total: number; ja: number }>(`SELECT count(*) AS total, sum(gloss_ja IS NOT NULL AND gloss_ja <> '') AS ja FROM lemmas`);
+    expect(r.ja).toBe(r.total);
+    const [l] = d1<{ gloss_ja: string }>(`SELECT gloss_ja FROM lemmas WHERE strongs_id = 'G3056'`);
+    expect(l.gloss_ja).toBe("ことば");
+  });
+});

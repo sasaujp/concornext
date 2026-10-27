@@ -17,7 +17,8 @@
     "data:build": "tsx scripts/build-import.ts",
     "data:import:local": "tsx scripts/apply-import.ts --local",
     "data:import:remote": "tsx scripts/apply-import.ts --remote",
-    "admin:invite": "tsx scripts/create-invite.ts"
+    "admin:invite": "tsx scripts/create-invite.ts",
+    "data:translate-glosses": "tsx scripts/translate-glosses.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.3.0",

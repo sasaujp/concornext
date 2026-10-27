@@ -7,7 +7,7 @@ export const hitMarker = (i: number) => CIRCLED[i] ?? `(${i + 1})`;
 
 function tokenTitle(t: Token) {
   return t.parts
-    .map(p => `${p.lemma} ${p.strongsId} — ${summarizeMorphology(decodeMorphology(p.morphology))}${p.gloss ? `「${p.gloss}」` : ""}`)
+    .map(p => `${p.lemma} ${p.strongsId} — ${summarizeMorphology(decodeMorphology(p.morphology))}${p.glossJa ?? p.gloss ? `「${p.glossJa ?? p.gloss}」` : ""}`)
     .join("\n");
 }
 

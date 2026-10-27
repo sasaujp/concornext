@@ -58,7 +58,14 @@ function LemmaHeader(props: { lemma: LemmaDetail }) {
           </span>
         </Show>
       </div>
-      <p class="text-lg">{props.lemma.gloss}</p>
+      <p class="text-lg">
+        {props.lemma.glossJa ?? props.lemma.gloss}
+        <Show when={props.lemma.glossJa && props.lemma.gloss}>
+          <span class="ml-2 text-sm text-muted-foreground" lang="en">
+            {props.lemma.gloss}
+          </span>
+        </Show>
+      </p>
       <div class="flex flex-wrap items-center gap-2 text-sm">
         <Badge variant="outline" class="font-mono">
           {props.lemma.strongsId}

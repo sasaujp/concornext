@@ -18,6 +18,8 @@ export interface LemmaListItem {
   altLemma: string | null;
   transliteration: string | null;
   gloss: string | null;
+  /** Japanese gloss (translated from `gloss`), when available. */
+  glossJa: string | null;
   occurrenceCount: number;
   verseCount: number;
   note: string | null;
@@ -41,6 +43,7 @@ const listColumns = {
   altLemma: lemmas.altLemma,
   transliteration: lemmas.transliteration,
   gloss: lemmas.gloss,
+  glossJa: lemmas.glossJa,
   occurrenceCount: lemmas.occurrenceCount,
   verseCount: lemmas.verseCount,
   note: lemmaNotes.note,
@@ -97,7 +100,7 @@ export async function searchLemmas(
           ),
         ]
       : [];
-    where = or(...translit, like(lemmas.gloss, `%${q}%`), like(lemmaNotes.note, `%${q}%`));
+    where = or(...translit, like(lemmas.gloss, `%${q}%`), like(lemmas.glossJa, `%${q}%`), like(lemmaNotes.note, `%${q}%`));
   }
 
   if (opts.letter) {
@@ -184,7 +187,7 @@ export interface Token {
   editionInfo: string;
   wordType: string;
   /** One entry per component lemma (more than one only for crasis forms). */
-  parts: { lemmaId: number; strongsId: string; lemma: string; gloss: string | null; morphology: string }[];
+  parts: { lemmaId: number; strongsId: string; lemma: string; gloss: string | null; glossJa: string | null; morphology: string }[];
 }
 
 export interface VerseTokens {
@@ -209,6 +212,7 @@ type TokenRow = {
   strongsId: string;
   lemma: string;
   gloss: string | null;
+  glossJa: string | null;
   morphology: string;
 };
 
@@ -235,7 +239,7 @@ function groupTokens(rows: TokenRow[]): VerseTokens[] {
       };
       cur.tokens.push(tok);
     }
-    tok.parts.push({ lemmaId: r.lemmaId, strongsId: r.strongsId, lemma: r.lemma, gloss: r.gloss, morphology: r.morphology });
+    tok.parts.push({ lemmaId: r.lemmaId, strongsId: r.strongsId, lemma: r.lemma, gloss: r.gloss, glossJa: r.glossJa, morphology: r.morphology });
   }
   return verses;
 }
@@ -255,6 +259,7 @@ const tokenColumns = {
   strongsId: lemmas.strongsId,
   lemma: lemmas.greekLemma,
   gloss: lemmas.gloss,
+  glossJa: lemmas.glossJa,
   morphology: occurrences.morphologyCode,
 };
 

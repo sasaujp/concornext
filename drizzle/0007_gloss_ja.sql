@@ -1,0 +1,1 @@
+ALTER TABLE `lemmas` ADD `gloss_ja` text;

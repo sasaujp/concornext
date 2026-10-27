@@ -46,6 +46,10 @@ interface OccRow {
 
 async function main() {
   const version = JSON.parse(await readFile(join(RAW, "VERSION.json"), "utf8").catch(() => '{"sha":"unknown"}'));
+  // Japanese glosses (scripts/translate-glosses.ts), committed to the repo; optional.
+  const glossesJa: Record<string, string> = JSON.parse(
+    await readFile(join(process.cwd(), "data", "glosses-ja.json"), "utf8").catch(() => "{}"),
+  );
 
   // --- TBESG lexicon
   const lexicon = new Map<string, TbesgEntry>();
@@ -158,6 +162,7 @@ async function main() {
       lex?.transliteration ?? null,
       lex?.transliteration ? normalizeLatin(lex.transliteration) : null,
       lex?.gloss ?? null,
+      glossesJa[s.strongs] ?? null,
       lex?.pos ?? null,
       s.count,
       s.verses.size,
@@ -165,13 +170,13 @@ async function main() {
     if (lex?.definition) defRows.push([id, lex.definition]);
   }
   if (missingLex.length) console.warn(`Lemmas without exact TBESG entry (${missingLex.length}): ${missingLex.join(" ")}`);
-  console.log(`Lemmas: ${lemmaRows.length}`);
+  console.log(`Lemmas: ${lemmaRows.length} (Japanese gloss: ${lemmaRows.filter(r => r[10]).length})`);
 
   await emit(
     "lemmas",
     inserts(
       "lemmas",
-      ["id", "strongs_id", "strongs_base", "greek_lemma", "lemma_plain", "alt_lemma", "alt_lemma_plain", "transliteration", "translit_plain", "gloss", "lex_pos", "occurrence_count", "verse_count"],
+      ["id", "strongs_id", "strongs_base", "greek_lemma", "lemma_plain", "alt_lemma", "alt_lemma_plain", "transliteration", "translit_plain", "gloss", "gloss_ja", "lex_pos", "occurrence_count", "verse_count"],
       lemmaRows,
     ),
   );

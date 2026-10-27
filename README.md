@@ -36,6 +36,14 @@ SSR、サーバー関数、D1 アクセス、Anthropic API 呼び出しは、す
 
 いま取り込んであるのは STEPBible-Data `be4191f0082a`（2026-10-24）です。内訳は NA28 の語 137,919、出現行 138,173、見出し語 5,554 です。バージョンは画面右上の「データについて」と、D1 の `data_versions` テーブルで確認できます。
 
+### 日本語の語義
+
+見出し語の英語の語義（TBESG）は、Claude Haiku で短い日本語の語義に訳し、`data/glosses-ja.json`（Strong's 番号 → 訳語）としてリポジトリに含めています。`pnpm data:build` のときに `lemmas.gloss_ja` に入ります。画面では日本語の語義を主に、英語を小さく併記します。日本語の語義でも検索できます。
+
+- 訳すときには、英語の語義に加えてギリシャ語の見出し語・品詞・辞書の冒頭を渡し、曖昧な語（例: λόγος の "word" → 「ことば」）は新約聖書での意味で訳させています。
+- 「lord: God」のように用法を区別している語義は、「主：神」のように区別を保ったまま訳します。固有名詞は、日本語の聖書で一般的なカタカナ表記にします。
+- 足りない分だけを訳す（再開できる）: `pnpm data:translate-glosses`。特定の語だけ訳し直す: `pnpm data:translate-glosses --redo G3056`。訳語を手で直す場合は JSON を編集してから `pnpm data:build` と `data:import` を実行してください。
+
 ### NA28 の扱い
 
 - TAGNT は複数の校訂版を統合したデータです。ConcorNext は **editions 列に `NA28` を含む語だけ**を取り込みます。TR/Byz のみの語など 4,177 語は除外しています。
@@ -165,7 +173,8 @@ tests/                       Vitest
 
 ソースコードは [MIT License](./LICENSE) です。
 
-データは本リポジトリに含みません（`pnpm data:download` で各配布元から取得します）。
+STEPBible の元データ（TAGNT・TBESG）と英訳は本リポジトリに含みません（`pnpm data:download` などで各配布元から取得します）。リポジトリに含むのは、日本語の語義（`data/glosses-ja.json`）だけです。
 
 - STEPBible TAGNT / TBESG: © STEPBible.org / Tyndale House Cambridge, [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)。配布元: https://github.com/STEPBible/STEPBible-Data
+- `data/glosses-ja.json`: TBESG の英語の語義を Claude Haiku で日本語に訳したもの（TBESG の派生物として CC BY 4.0）
 - Berean Standard Bible: パブリックドメイン（bible.helloao.org の Free Use Bible API 経由）

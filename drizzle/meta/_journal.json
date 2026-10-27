@@ -50,6 +50,13 @@
       "when": 1793037584924,
       "tag": "0006_drop_app_settings",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1793064113589,
+      "tag": "0007_gloss_ja",
+      "breakpoints": true
     }
   ]
 }

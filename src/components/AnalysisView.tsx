@@ -1,7 +1,9 @@
 import { For, Show } from "solid-js";
+import { CopyButton } from "~/components/CopyButton";
 import { MorphBadges } from "~/components/MorphBadges";
 import { Separator } from "~/components/ui/separator";
 import { Tabs, TabsContent, TabsIndicator, TabsList, TabsTrigger } from "~/components/ui/tabs";
+import { type AnalysisSectionKey, sectionAsText } from "~/lib/analysis-text";
 import type { AnalysisResponse, Token } from "~/lib/queries";
 
 type Ok = Extract<AnalysisResponse, { status: "ok" }>;
@@ -21,10 +23,19 @@ function Prose(props: { text: string }) {
   return <p class="whitespace-pre-line text-sm leading-7">{props.text}</p>;
 }
 
-export function AnalysisView(props: { result: Ok; tokens: Token[] }) {
+export function AnalysisView(props: { result: Ok; tokens: Token[]; reference: string; english?: () => string | null | undefined }) {
   const a = () => props.result.analysis;
   const tokenAt = (pos: number) => props.tokens.find(t => t.position === pos);
   const roleOf = (pos: number) => a().wordRoles.find(w => w.position === pos)?.role;
+  /** "Copy" for one tab: the section as Markdown, headed by the passage so it can be pasted into another AI. */
+  const copyBar = (key: AnalysisSectionKey) => (
+    <div class="flex justify-end">
+      <CopyButton
+        label="このタブをコピー"
+        text={() => sectionAsText(key, { reference: props.reference, analysis: a(), tokens: props.tokens, english: props.english?.() })}
+      />
+    </div>
+  );
 
   return (
     <div class="space-y-4">
@@ -40,6 +51,7 @@ export function AnalysisView(props: { result: Ok; tokens: Token[] }) {
         </TabsList>
 
         <TabsContent value="syntax" class="space-y-4 pt-3">
+          {copyBar("syntax")}
           <Prose text={a().syntax.summary} />
           <ol class="space-y-3">
             <For each={a().syntax.clauses}>
@@ -59,6 +71,7 @@ export function AnalysisView(props: { result: Ok; tokens: Token[] }) {
         </TabsContent>
 
         <TabsContent value="morph" class="space-y-4 pt-3">
+          {copyBar("morph")}
           <Section title="対象語">
             <Show when={tokenAt(a().targetWord.position)}>
               {t => (
@@ -121,6 +134,7 @@ export function AnalysisView(props: { result: Ok; tokens: Token[] }) {
         </TabsContent>
 
         <TabsContent value="aorist" class="space-y-4 pt-3">
+          {copyBar("aorist")}
           <Show when={a().aorist.items.length} fallback={<Prose text={a().aorist.absenceNote || "この節にはアオリスト形の語はありません。"} />}>
             <For each={a().aorist.items}>
               {item => (
@@ -155,6 +169,7 @@ export function AnalysisView(props: { result: Ok; tokens: Token[] }) {
         </TabsContent>
 
         <TabsContent value="translation" class="space-y-4 pt-3">
+          {copyBar("translation")}
           <Section title="逐語訳（原文の構造を保持）">
             <Prose text={a().translation.literal} />
           </Section>
@@ -169,6 +184,7 @@ export function AnalysisView(props: { result: Ok; tokens: Token[] }) {
         </TabsContent>
 
         <TabsContent value="notes" class="space-y-4 pt-3">
+          {copyBar("notes")}
           <Section title="文法的事実">
             <ul class="list-disc space-y-1 pl-5 text-sm leading-7">
               <For each={a().cautions.grammaticalFacts}>{d => <li>{d}</li>}</For>

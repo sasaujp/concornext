@@ -9,7 +9,7 @@ const tok = (position: number, surface: string, morphology: string) => ({
   english: null,
   editionInfo: "NA28",
   wordType: "NKO",
-  parts: [{ lemmaId: 1, strongsId: "G0001", lemma: surface, gloss: null, morphology }],
+  parts: [{ lemmaId: 1, strongsId: "G0001", lemma: surface, gloss: null, glossJa: null, morphology }],
 });
 
 // Jhn 1:6 (abridged): Ἐγένετο (aorist) ἄνθρωπος ἀπεσταλμένος (perfect participle)

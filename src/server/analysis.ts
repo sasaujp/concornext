@@ -15,7 +15,7 @@ import { getBsbVerses, TRANSLATION } from "./bsb";
 import type { Db } from "./db";
 import { getVerseTokens, type VerseTokens } from "./lexicon";
 
-export const PROMPT_VERSION = "2026-10-27.2";
+export const PROMPT_VERSION = "2026-10-27.3";
 const DEFAULT_MODEL = "claude-haiku-5-5";
 
 export type AnalysisResponse =
@@ -41,13 +41,20 @@ const SYSTEM_PROMPT = `あなたは新約聖書ギリシャ語（コイネー）
 - 文法的事実（形態・統語から言えること）と、解釈・釈義上の推論を区別してください。特定の教派や神学的立場を前提にせず、本文から支持できる説明を優先してください。
 - ギリシャ語は入力本文の綴りどおりに引用してください。本文は TAGNT から構成したもので、NA28 の印刷版と句読点・語順が完全に一致するとは限りません。
 - 語形の成り立ちは「加音・重複」「時制語幹」「語尾」を分けて示してください（例: ἐ-γέν-ετο = 加音 ἐ- ＋ 第2アオリスト語幹 γεν- ＋ 語尾 -ετο）。語幹に加音を含めないでください。
-- 該当しない文法項目は書かないでください（名詞に時制を書くなど）。`;
+- 該当しない文法項目は書かないでください（名詞に時制を書くなど）。
+
+文体:
+- 説明文は「です・ます」調で、学習者に語りかけるように、やわらかく説明的に書いてください。体言止めや「〜である」「〜を示す」で終わる硬い文は避けてください。
+- 1 文を短めにし、「なぜそう読めるのか」をひとこと添えてください（例:「ἄνθρωπος が主格なので、この文の主語だと分かります」）。
+- 専門用語（完結相、与格、独立属格など）を初めて使うときは、短い言い換えを括弧で添えてください。
+- 例外: 各語の「役割」（wordRoles.role）と節の種類（clauses.kind）は短い名詞句のままで構いません。逐語訳・自然な日本語訳の訳文そのものは、です・ます調にする必要はありません。`;
 
 function morphLine(t: VerseTokens["tokens"][number]): string {
   return t.parts
     .map(p => {
       const m = decodeMorphology(p.morphology);
-      return `${p.lemma}（${p.strongsId}, ${p.gloss ?? ""}）${p.morphology} = ${summarizeMorphology(m)}`;
+      const gloss = [p.glossJa, p.gloss].filter(Boolean).join(" / ");
+      return `${p.lemma}（${p.strongsId}, ${gloss}）${p.morphology} = ${summarizeMorphology(m)}`;
     })
     .join(" ＋ ");
 }

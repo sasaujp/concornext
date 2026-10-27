@@ -23,6 +23,7 @@ export const lemmas = sqliteTable(
     transliteration: text("transliteration"),
     translitPlain: text("translit_plain"), // ASCII-folded transliteration (archē → arche)
     gloss: text("gloss"),
+    glossJa: text("gloss_ja"), // Japanese gloss (data/glosses-ja.json, translated from `gloss` with Claude)
     lexPos: text("lex_pos"), // TBESG part-of-speech code (e.g. G:N-M)
     occurrenceCount: integer("occurrence_count").notNull().default(0),
     verseCount: integer("verse_count").notNull().default(0),
