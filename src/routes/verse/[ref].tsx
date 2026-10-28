@@ -1,18 +1,18 @@
 import { A, createAsync, useAction, useParams, useSearchParams, useSubmission } from "@solidjs/router";
-import { ArrowLeft, ChevronLeft, ChevronRight, RefreshCw, Sparkles } from "lucide-solid";
+import { ArrowLeft, BookOpen, ChevronLeft, ChevronRight, RefreshCw, Sparkles } from "lucide-solid";
 import { createMemo, For, Match, Show, Suspense, Switch } from "solid-js";
 import { AnalysisView } from "~/components/AnalysisView";
-import { GreekVerse, na28Shift } from "~/components/GreekVerse";
+import { GreekVerse } from "~/components/GreekVerse";
 import { MorphBadges } from "~/components/MorphBadges";
+import { plainSurface, WordDetails } from "~/components/WordDetails";
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert";
-import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "~/components/ui/card";
 import { Skeleton } from "~/components/ui/skeleton";
 import { bookByCode, displayRef, parseRef } from "~/lib/books";
 import { decodeMorphology } from "~/lib/morph";
 import { analyzeAction, appInfoQuery, bsbQuery, cachedAnalysisQuery, verseQuery, type AnalysisResponse } from "~/lib/queries";
-import { lexiconHref, readParams, safeReturnPath, verseHref } from "~/lib/url";
+import { lexiconHref, passageHref, readParams, safeReturnPath, verseHref } from "~/lib/url";
 
 type VerseSearch = { s?: string; w?: string; from?: string };
 
@@ -43,9 +43,12 @@ export default function VersePage() {
     return t.parts.find(p => p.strongsId === strongs())?.strongsId ?? t.parts[0].strongsId;
   };
 
-  // Return to the concordance and scroll back to this verse's card.
+  const from = () => safeReturnPath(typeof search.from === "string" ? search.from : null);
+  const fromPassage = () => from()?.startsWith("/passage") ?? false;
+
+  // Return to the concordance (or the passage reader) and scroll back to this verse.
   const backHref = () => {
-    const base = safeReturnPath(typeof search.from === "string" ? search.from : null) ?? lexiconHref(readParams({ s: strongs() ?? undefined }));
+    const base = from() ?? lexiconHref(readParams({ s: strongs() ?? undefined }));
     const r = ref();
     return r ? `${base.split("#")[0]}#v-${r.book.code}-${r.chapter}-${r.verse}` : base;
   };
@@ -61,9 +64,21 @@ export default function VersePage() {
   return (
     <div class="mx-auto max-w-5xl space-y-4 px-3 py-4 sm:space-y-5 sm:p-4 lg:p-6">
       <div class="flex flex-wrap items-center justify-between gap-2">
-        <A href={backHref()} class="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
-          <ArrowLeft class="size-4" aria-hidden="true" /> コンコルダンスに戻る
-        </A>
+        <div class="flex flex-wrap items-center gap-x-4 gap-y-1">
+          <A href={backHref()} class="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
+            <ArrowLeft class="size-4" aria-hidden="true" /> {fromPassage() ? "本文に戻る" : "コンコルダンスに戻る"}
+          </A>
+          <Show when={!fromPassage() && ref()}>
+            {r => (
+              <A
+                href={passageHref(`${r().book.code}.${r().chapter}`, { at: selectedPos() ? `${r().chapter}.${r().verse}.${selectedPos()}` : null }) + `#v-${r().book.code}-${r().chapter}-${r().verse}`}
+                class="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+              >
+                <BookOpen class="size-4" aria-hidden="true" /> {r().book.ja} {r().chapter}章を本文で読む
+              </A>
+            )}
+          </Show>
+        </div>
         <Suspense>
           <Show when={verse()}>
             {v => (
@@ -133,44 +148,11 @@ export default function VersePage() {
                           <CardHeader class="pb-3">
                             <CardDescription>選択中の語（確定データ: STEPBible）</CardDescription>
                             <CardTitle class="greek text-3xl font-bold" lang="grc">
-                              {t().surface.replace(/[¶,.;·:]+/g, "")}
+                              {plainSurface(t())}
                             </CardTitle>
                           </CardHeader>
-                          <CardContent class="space-y-3 text-sm">
-                            <For each={t().parts}>
-                              {p => (
-                                <div class="space-y-2">
-                                  <div class="flex flex-wrap items-baseline gap-2">
-                                    <span class="text-muted-foreground">辞書形</span>
-                                    <A href={lexiconHref(readParams({ s: p.strongsId }))} class="greek text-xl font-semibold hover:underline" lang="grc">
-                                      {p.lemma}
-                                    </A>
-                                    <Badge variant="outline" class="font-mono">
-                                      {p.strongsId}
-                                    </Badge>
-                                    <span>{p.glossJa ?? p.gloss}</span>
-                                    <Show when={p.glossJa && p.gloss}>
-                                      <span class="text-xs text-muted-foreground" lang="en">
-                                        {p.gloss}
-                                      </span>
-                                    </Show>
-                                  </div>
-                                  <MorphBadges code={p.morphology} />
-                                </div>
-                              )}
-                            </For>
-                            <dl class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
-                              <dt class="text-muted-foreground">転写</dt>
-                              <dd>{t().transliteration}</dd>
-                              <dt class="text-muted-foreground">文脈訳</dt>
-                              <dd>{t().english}</dd>
-                              <dt class="text-muted-foreground">校訂版</dt>
-                              <dd class="break-all font-mono">{t().editionInfo}</dd>
-                              <Show when={na28Shift(t())}>
-                                <dt class="text-muted-foreground">語順</dt>
-                                <dd>NA28 では位置が異なります（{na28Shift(t())}）</dd>
-                              </Show>
-                            </dl>
+                          <CardContent>
+                            <WordDetails token={t()} />
                           </CardContent>
                         </Card>
                       )}

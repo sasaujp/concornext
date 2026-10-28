@@ -78,3 +78,15 @@ export function safeReturnPath(from: string | undefined | null): string | null {
   if (!from || !from.startsWith("/") || from.startsWith("//")) return null;
   return from;
 }
+
+/** Passage reader. `r` is a passage ("Jhn.1.1-18"); `at` is the selected word as "chapter.verse.position". */
+export type PassageParams = { r?: string; at?: string; en?: string };
+
+export function passageHref(r: string | null, opts: { at?: string | null; en?: boolean } = {}) {
+  const u = new URLSearchParams();
+  if (r) u.set("r", r);
+  if (opts.at) u.set("at", opts.at);
+  if (opts.en === false) u.set("en", "0");
+  const qs = u.toString();
+  return `/passage${qs ? `?${qs}` : ""}`;
+}

@@ -11,14 +11,17 @@ import { listPasskeys, removePasskey, type SessionUser } from "./auth";
 import { getBsbVerses, type VerseRefInput } from "./bsb";
 import { getDb } from "./db";
 import {
+  getBookOutline,
   getConcordance,
   getLemmaDetail,
+  getPassageTokens,
   getScopeBook,
   getVerseNeighbours,
   getVerseTokens,
   saveLemmaNote,
   searchLemmas,
   setScopeBook,
+  MAX_PASSAGE_VERSES,
   type LemmaSort,
 } from "./lexicon";
 
@@ -65,7 +68,7 @@ export async function fetchConcordance(strongsId: string, book: string | null, p
 
 export async function fetchBsb(refs: VerseRefInput[]) {
   requireUser();
-  return getBsbVerses(getDb(), refs.slice(0, 40));
+  return getBsbVerses(getDb(), refs.slice(0, MAX_PASSAGE_VERSES));
 }
 
 export async function fetchVerse(book: string, chapter: number, verse: number) {
@@ -73,6 +76,16 @@ export async function fetchVerse(book: string, chapter: number, verse: number) {
   const db = getDb();
   const [tokens, neighbours] = await Promise.all([getVerseTokens(db, book, chapter, verse), getVerseNeighbours(db, book, chapter, verse)]);
   return tokens ? { ...tokens, ...neighbours } : null;
+}
+
+export async function fetchOutline() {
+  requireUser();
+  return getBookOutline(getDb());
+}
+
+export async function fetchPassage(book: string, from: { chapter: number; verse: number }, to: { chapter: number; verse: number }) {
+  requireUser();
+  return getPassageTokens(getDb(), book, from, to);
 }
 
 export async function fetchCachedAnalysis(req: AnalysisRequest) {

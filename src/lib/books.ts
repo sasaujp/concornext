@@ -74,3 +74,84 @@ export function displayRef(code: string, chapter: number, verse: number): string
   const b = bookByCode(code);
   return `${b?.ja ?? code} ${chapter}:${verse}`;
 }
+
+/** Verse number meaning "to the end of the chapter". */
+export const CHAPTER_END = 999;
+
+/** A contiguous range of verses within one book (may span chapters). */
+export interface Passage {
+  book: Book;
+  from: { chapter: number; verse: number };
+  /** `verse` is CHAPTER_END when the range runs to the end of `chapter`. */
+  to: { chapter: number; verse: number };
+}
+
+/** Lookup key for book names: NFKC, lowercase, no spaces/dots; leading Roman numerals (Ⅰ → "i") become digits. */
+function bookKey(s: string): string {
+  return s
+    .normalize("NFKC")
+    .toLowerCase()
+    .replace(/[\s.]/g, "")
+    .replace(/^iii/, "3")
+    .replace(/^ii/, "2")
+    .replace(/^i/, "1");
+}
+
+const byName = new Map<string, Book>();
+for (const b of BOOKS) for (const name of [b.code, b.usfm, b.en, b.ja]) byName.set(bookKey(name), b);
+
+/** Book by code, USFM id, English or Japanese name, or an unambiguous prefix of the English name ("Matt", "1Cor"). */
+export function findBook(name: string): Book | undefined {
+  const key = bookKey(name);
+  if (!key) return undefined;
+  const exact = byName.get(key);
+  if (exact) return exact;
+  const prefixed = BOOKS.filter(b => bookKey(b.en).startsWith(key) || bookKey(b.ja).startsWith(key));
+  return prefixed.length === 1 ? prefixed[0] : undefined;
+}
+
+/**
+ * Parses a passage such as "Jhn.1.1-18", "ヨハネ 1:1-18", "John 1:1–2:11", "1コリント 13" (whole chapter)
+ * or "Mat 5-7" (chapters 5 to 7).
+ */
+export function parsePassage(input: string): Passage | null {
+  const s = input.normalize("NFKC").trim();
+  const m = s.match(/^(.+?)\s*(\d+)(?:[:.](\d+))?(?:\s*[-–—~〜]\s*(\d+)(?:[:.](\d+))?)?$/);
+  if (!m) return null;
+  const book = findBook(m[1]);
+  if (!book) return null;
+  const [c1, v1, a, b] = [m[2], m[3], m[4], m[5]].map(x => (x === undefined ? undefined : Number(x)));
+  let from: Passage["from"];
+  let to: Passage["to"];
+  if (v1 === undefined) {
+    // "5", "5-7", "5-7:12"
+    from = { chapter: c1!, verse: 1 };
+    to = a === undefined ? { chapter: c1!, verse: CHAPTER_END } : { chapter: a, verse: b ?? CHAPTER_END };
+  } else {
+    // "1:1", "1:1-18", "1:1-2:11"
+    from = { chapter: c1!, verse: v1 };
+    to = a === undefined ? { ...from } : b === undefined ? { chapter: c1!, verse: a } : { chapter: a, verse: b };
+  }
+  if (from.chapter < 1 || from.verse < 1 || to.chapter < 1 || to.verse < 1) return null;
+  if (to.chapter < from.chapter || (to.chapter === from.chapter && to.verse < from.verse)) return null;
+  return { book, from, to };
+}
+
+/** Canonical URL form: "Jhn.1.1-18", "Jhn.1.1-2.11", "Jhn.1", "Mat.5-7". */
+export function formatPassage(p: Passage): string {
+  const { from, to } = p;
+  const wholeChapters = from.verse === 1 && to.verse === CHAPTER_END;
+  if (wholeChapters) return `${p.book.code}.${from.chapter}${to.chapter === from.chapter ? "" : `-${to.chapter}`}`;
+  const start = `${p.book.code}.${from.chapter}.${from.verse}`;
+  const end = to.chapter === from.chapter ? `${to.verse}` : `${to.chapter}.${to.verse}`;
+  return to.chapter === from.chapter && to.verse === from.verse ? start : `${start}-${end}`;
+}
+
+/** Display form: "ヨハネ 1:1–18", "ヨハネ 1章", "マタイ 5–7章". CHAPTER_END is shown as the chapter only. */
+export function displayPassage(p: Passage): string {
+  const { from, to } = p;
+  const ja = p.book.ja;
+  if (from.verse === 1 && to.verse === CHAPTER_END) return `${ja} ${from.chapter}${to.chapter === from.chapter ? "" : `–${to.chapter}`}章`;
+  const end = to.verse === CHAPTER_END ? `${to.chapter}章末` : to.chapter === from.chapter ? `${to.verse}` : `${to.chapter}:${to.verse}`;
+  return to.chapter === from.chapter && to.verse === from.verse ? `${ja} ${from.chapter}:${from.verse}` : `${ja} ${from.chapter}:${from.verse}–${end}`;
+}

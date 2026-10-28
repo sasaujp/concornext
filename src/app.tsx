@@ -1,7 +1,7 @@
 import { A, createAsync, Router } from "@solidjs/router";
 import { FileRoutes } from "@solidjs/start/router";
 import { ErrorBoundary, onMount, Show, Suspense } from "solid-js";
-import { BookOpenText, UserRound } from "lucide-solid";
+import { BookOpenText, ScrollText, UserRound } from "lucide-solid";
 import { BookScopeSelect } from "~/components/BookScopeSelect";
 import { DataInfo } from "~/components/DataInfo";
 import { Button } from "~/components/ui/button";
@@ -50,6 +50,10 @@ function HeaderControls() {
         <Show when={me()}>
           {user => (
             <>
+              <Button as={A} href="/passage" variant="ghost" size="sm" aria-label="本文を読む">
+                <ScrollText class="size-4" aria-hidden="true" />
+                <span class="hidden md:inline">本文</span>
+              </Button>
               <BookScopeSelect />
               <DataInfo />
               <Button as={A} href="/account" variant="ghost" size="sm" aria-label={`アカウント（${user().username}）`}>

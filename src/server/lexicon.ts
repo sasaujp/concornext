@@ -422,6 +422,62 @@ export async function getVerseTokens(db: Db, code: string, chapter: number, vers
   return groupTokens(rows)[0] ?? null;
 }
 
+/** Upper bound on verses returned for one passage (keeps the page and the BSB lookup reasonable). */
+export const MAX_PASSAGE_VERSES = 200;
+
+export interface PassageTokens {
+  book: string;
+  verses: VerseTokens[];
+  /** True when the range was longer than MAX_PASSAGE_VERSES and was cut short. */
+  truncated: boolean;
+  /** Number of chapters in the book (for chapter navigation). */
+  lastChapter: number;
+}
+
+/** All tokens of a verse range within one book, in order. `to.verse` may be CHAPTER_END. */
+export async function getPassageTokens(
+  db: Db,
+  code: string,
+  from: { chapter: number; verse: number },
+  to: { chapter: number; verse: number },
+): Promise<PassageTokens | null> {
+  const book = bookByCode(code);
+  if (!book) return null;
+  const cv = sql`(${occurrences.chapter}, ${occurrences.verse})`;
+  const range = and(eq(occurrences.bookOrd, book.ord), sql`${cv} >= (${from.chapter}, ${from.verse})`, sql`${cv} <= (${to.chapter}, ${to.verse})`);
+  // Find the last verse within the cap first, so a huge range never loads more than MAX_PASSAGE_VERSES verses.
+  const [refs, [{ lastChapter }]] = await Promise.all([
+    db
+      .selectDistinct({ chapter: occurrences.chapter, verse: occurrences.verse })
+      .from(occurrences)
+      .where(range)
+      .orderBy(asc(occurrences.chapter), asc(occurrences.verse))
+      .limit(MAX_PASSAGE_VERSES + 1),
+    db.select({ lastChapter: sql<number>`max(${occurrences.chapter})` }).from(occurrences).where(eq(occurrences.bookOrd, book.ord)),
+  ]);
+  if (!refs.length) return { book: book.code, verses: [], truncated: false, lastChapter };
+  const truncated = refs.length > MAX_PASSAGE_VERSES;
+  const last = refs[Math.min(refs.length, MAX_PASSAGE_VERSES) - 1];
+  const rows = await db
+    .select(tokenColumns)
+    .from(occurrences)
+    .innerJoin(lemmas, eq(lemmas.id, occurrences.lemmaId))
+    .where(and(range, sql`${cv} <= (${last.chapter}, ${last.verse})`))
+    .orderBy(...tokenOrder);
+  return { book: book.code, verses: groupTokens(rows), truncated, lastChapter };
+}
+
+/** Number of verses in each chapter of every book: "Jhn" → [51, 25, …] (index = chapter − 1). */
+export async function getBookOutline(db: Db): Promise<Record<string, number[]>> {
+  const rows = await db
+    .select({ bookOrd: occurrences.bookOrd, chapter: occurrences.chapter, verses: sql<number>`max(${occurrences.verse})` })
+    .from(occurrences)
+    .groupBy(occurrences.bookOrd, occurrences.chapter);
+  const out: Record<string, number[]> = {};
+  for (const r of rows) (out[bookByOrd(r.bookOrd)!.code] ??= [])[r.chapter - 1] = r.verses;
+  return out;
+}
+
 export interface VerseNeighbours {
   prev: { book: string; chapter: number; verse: number } | null;
   next: { book: string; chapter: number; verse: number } | null;
