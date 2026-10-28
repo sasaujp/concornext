@@ -379,19 +379,7 @@ export async function getConcordance(
 
   let verses: ConcordancePage["verses"] = [];
   if (refs.length) {
-    // Row-value IN over the page's verses (3 bound parameters per verse; pageSize ≤ 30 keeps us under D1's 100).
-    const rows = await db
-      .select(tokenColumns)
-      .from(occurrences)
-      .innerJoin(lemmas, eq(lemmas.id, occurrences.lemmaId))
-      .where(
-        sql`(${occurrences.bookOrd}, ${occurrences.chapter}, ${occurrences.verse}) IN (VALUES ${sql.join(
-          refs.map(r => sql`(${r.bookOrd}, ${r.chapter}, ${r.verse})`),
-          sql`, `,
-        )})`,
-      )
-      .orderBy(...tokenOrder);
-    verses = groupTokens(rows).map(v => ({
+    verses = (await getVersesByOrd(db, refs)).map(v => ({
       ...v,
       hits: v.tokens.filter(t => t.parts.some(p => p.lemmaId === lemma.id)).map(t => t.position),
     }));
@@ -407,6 +395,41 @@ export async function getConcordance(
     pageSize,
     verses,
   };
+}
+
+/** Verses to fetch per statement: 3 bound parameters per verse keeps us under D1's limit of 100. */
+const VERSES_PER_QUERY = 30;
+
+/** Tokens of the given verses (any order, any number), returned in Bible order. Missing verses are skipped. */
+async function getVersesByOrd(db: Db, refs: { bookOrd: number; chapter: number; verse: number }[]): Promise<VerseTokens[]> {
+  const chunks: (typeof refs)[] = [];
+  for (let i = 0; i < refs.length; i += VERSES_PER_QUERY) chunks.push(refs.slice(i, i + VERSES_PER_QUERY));
+  const results = await Promise.all(
+    chunks.map(chunk =>
+      db
+        .select(tokenColumns)
+        .from(occurrences)
+        .innerJoin(lemmas, eq(lemmas.id, occurrences.lemmaId))
+        .where(
+          sql`(${occurrences.bookOrd}, ${occurrences.chapter}, ${occurrences.verse}) IN (VALUES ${sql.join(
+            chunk.map(r => sql`(${r.bookOrd}, ${r.chapter}, ${r.verse})`),
+            sql`, `,
+          )})`,
+        )
+        .orderBy(...tokenOrder),
+    ),
+  );
+  const ord = (v: VerseTokens) => bookByCode(v.book)!.ord;
+  return results.flatMap(groupTokens).sort((a, b) => ord(a) - ord(b) || a.chapter - b.chapter || a.verse - b.verse);
+}
+
+/** Tokens of the given verses by book code (unknown books are ignored). */
+export async function getVersesTokens(db: Db, refs: { book: string; chapter: number; verse: number }[]): Promise<VerseTokens[]> {
+  const byOrd = refs.flatMap(r => {
+    const book = bookByCode(r.book);
+    return book ? [{ bookOrd: book.ord, chapter: r.chapter, verse: r.verse }] : [];
+  });
+  return byOrd.length ? getVersesByOrd(db, byOrd) : [];
 }
 
 /** All tokens of a single verse, plus neighbours for navigation. */

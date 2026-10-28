@@ -144,6 +144,21 @@ export const lemmaNotes = sqliteTable(
   t => [primaryKey({ columns: [t.userId, t.book, t.strongsId] }), index("lemma_notes_user_strongs_idx").on(t.userId, t.strongsId)],
 );
 
+/** Each user's favourite verses, with an optional free-text memo (may span several lines). */
+export const verseFavorites = sqliteTable(
+  "verse_favorites",
+  {
+    userId: text("user_id").notNull(),
+    book: text("book").notNull(), // TAGNT book code, e.g. Jhn
+    chapter: integer("chapter").notNull(),
+    verse: integer("verse").notNull(),
+    note: text("note"),
+    createdAt: text("created_at").notNull(),
+    updatedAt: text("updated_at").notNull(),
+  },
+  t => [primaryKey({ columns: [t.userId, t.book, t.chapter, t.verse] })],
+);
+
 /** Per-user settings (key/value), e.g. the book chosen in the header. */
 export const userSettings = sqliteTable(
   "user_settings",

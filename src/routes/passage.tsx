@@ -1,6 +1,7 @@
 import { A, createAsync, useLocation, useNavigate, useSearchParams } from "@solidjs/router";
-import { ChevronLeft, ChevronRight, GraduationCap, Library, X } from "lucide-solid";
+import { ChevronLeft, ChevronRight, GraduationCap, Library, NotebookPen, X } from "lucide-solid";
 import { createEffect, createMemo, createSignal, For, on, Show, Suspense } from "solid-js";
+import { FavoriteButton, useFavorites } from "~/components/Favorite";
 import { GreekVerse } from "~/components/GreekVerse";
 import { plainSurface, WordDetails } from "~/components/WordDetails";
 import { Alert, AlertDescription } from "~/components/ui/alert";
@@ -242,6 +243,8 @@ function PassageReader(props: { passage: Passage }) {
     return refs.length ? bsbQuery(refs) : null;
   });
 
+  const favs = useFavorites();
+
   const selected = createMemo((): Selected | null => {
     const at = typeof search.at === "string" ? search.at.split(".").map(Number) : [];
     if (at.length !== 3) return null;
@@ -332,9 +335,12 @@ function PassageReader(props: { passage: Passage }) {
                           <h2 class="mb-2 mt-4 border-b pb-1 text-sm font-semibold text-muted-foreground first:mt-0">{v.chapter}章</h2>
                         </Show>
                         <div class="flex gap-2">
-                          <span class="w-9 shrink-0 pt-1.5 text-right text-xs font-semibold tabular-nums text-muted-foreground">
-                            {v.chapter}:{v.verse}
-                          </span>
+                          <div class="flex w-9 shrink-0 flex-col items-end pt-1.5">
+                            <span class="text-xs font-semibold tabular-nums text-muted-foreground">
+                              {v.chapter}:{v.verse}
+                            </span>
+                            <FavoriteButton book={v.book} chapter={v.chapter} verse={v.verse} class="-mr-1" confirmBelow />
+                          </div>
                           <div class="min-w-0 flex-1 space-y-1">
                             <GreekVerse
                               tokens={v.tokens}
@@ -342,6 +348,17 @@ function PassageReader(props: { passage: Passage }) {
                               selected={selected()?.verse === v ? selected()!.token.position : undefined}
                               onSelect={pos => select(v, pos)}
                             />
+                            <Show when={favs.get(v)?.note}>
+                              {note => (
+                                <p class="flex items-start gap-1.5 text-sm">
+                                  <NotebookPen class="mt-0.5 size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
+                                  {/* Long memos are clamped here; the full text is on the verse page and the favourites list. */}
+                                  <span class="line-clamp-3 whitespace-pre-wrap break-words" title={note()}>
+                                    {note()}
+                                  </span>
+                                </p>
+                              )}
+                            </Show>
                             <Show when={showEnglish()}>
                               <Suspense>
                                 <Show when={bsb()?.verses[`${v.book}.${v.chapter}.${v.verse}`]}>

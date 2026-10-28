@@ -10,6 +10,7 @@ import { analysisModel, getCachedAnalysis, PROMPT_VERSION, runAnalysis, type Ana
 import { listPasskeys, removePasskey, type SessionUser } from "./auth";
 import { getBsbVerses, type VerseRefInput } from "./bsb";
 import { getDb } from "./db";
+import { listFavorites, saveFavoriteNote, setFavorite } from "./favorites";
 import {
   getBookOutline,
   getConcordance,
@@ -18,6 +19,7 @@ import {
   getScopeBook,
   getVerseNeighbours,
   getVerseTokens,
+  getVersesTokens,
   saveLemmaNote,
   searchLemmas,
   setScopeBook,
@@ -86,6 +88,24 @@ export async function fetchOutline() {
 export async function fetchPassage(book: string, from: { chapter: number; verse: number }, to: { chapter: number; verse: number }) {
   requireUser();
   return getPassageTokens(getDb(), book, from, to);
+}
+
+export async function fetchFavorites() {
+  return listFavorites(getDb(), requireUser().id);
+}
+
+/** Greek text of the given verses (for the favourites list). */
+export async function fetchVersesTokens(refs: { book: string; chapter: number; verse: number }[]) {
+  requireUser();
+  return getVersesTokens(getDb(), refs.slice(0, 1000));
+}
+
+export async function updateFavorite(book: string, chapter: number, verse: number, on: boolean) {
+  await setFavorite(getDb(), requireUser().id, book, chapter, verse, on);
+}
+
+export async function updateFavoriteNote(book: string, chapter: number, verse: number, note: string) {
+  return saveFavoriteNote(getDb(), requireUser().id, book, chapter, verse, note);
 }
 
 export async function fetchCachedAnalysis(req: AnalysisRequest) {

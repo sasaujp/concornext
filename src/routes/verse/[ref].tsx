@@ -2,6 +2,7 @@ import { A, createAsync, useAction, useParams, useSearchParams, useSubmission } 
 import { ArrowLeft, BookOpen, ChevronLeft, ChevronRight, RefreshCw, Sparkles } from "lucide-solid";
 import { createMemo, For, Match, Show, Suspense, Switch } from "solid-js";
 import { AnalysisView } from "~/components/AnalysisView";
+import { FavoriteButton, FavoriteNote } from "~/components/Favorite";
 import { GreekVerse } from "~/components/GreekVerse";
 import { MorphBadges } from "~/components/MorphBadges";
 import { plainSurface, WordDetails } from "~/components/WordDetails";
@@ -45,6 +46,7 @@ export default function VersePage() {
 
   const from = () => safeReturnPath(typeof search.from === "string" ? search.from : null);
   const fromPassage = () => from()?.startsWith("/passage") ?? false;
+  const backLabel = () => (fromPassage() ? "本文に戻る" : from()?.startsWith("/favorites") ? "お気に入りに戻る" : "コンコルダンスに戻る");
 
   // Return to the concordance (or the passage reader) and scroll back to this verse.
   const backHref = () => {
@@ -66,7 +68,7 @@ export default function VersePage() {
       <div class="flex flex-wrap items-center justify-between gap-2">
         <div class="flex flex-wrap items-center gap-x-4 gap-y-1">
           <A href={backHref()} class="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
-            <ArrowLeft class="size-4" aria-hidden="true" /> {fromPassage() ? "本文に戻る" : "コンコルダンスに戻る"}
+            <ArrowLeft class="size-4" aria-hidden="true" /> {backLabel()}
           </A>
           <Show when={!fromPassage() && ref()}>
             {r => (
@@ -113,7 +115,8 @@ export default function VersePage() {
                 <>
                   <Card>
                     <CardHeader class="pb-2">
-                      <CardTitle class="text-xl">
+                      <CardTitle class="flex flex-wrap items-center gap-x-1 text-xl">
+                        <FavoriteButton book={v().book} chapter={v().chapter} verse={v().verse} class="-ml-1" />
                         {displayRef(v().book, v().chapter, v().verse)}
                         <span class="ml-2 text-sm font-normal text-muted-foreground">
                           {bookByCode(v().book)?.en} {v().chapter}:{v().verse}
@@ -135,6 +138,7 @@ export default function VersePage() {
                           {english()?.verses[`${v().book}.${v().chapter}.${v().verse}`] ?? "（英訳を取得できませんでした）"}
                         </p>
                       </Suspense>
+                      <FavoriteNote book={v().book} chapter={v().chapter} verse={v().verse} />
                       <p class="text-xs text-muted-foreground">
                         本文は STEPBible TAGNT のうち NA28 に含まれる語から構成しています（語順・句読点は TAGNT による。NA28 で語順が異なる語には ↔ を付けています）。
                       </p>

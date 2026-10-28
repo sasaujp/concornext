@@ -1,4 +1,4 @@
-import { action, query } from "@solidjs/router";
+import { action, json, query } from "@solidjs/router";
 import {
   deletePasskey,
   fetchAccount,
@@ -7,13 +7,17 @@ import {
   fetchBsb,
   fetchCachedAnalysis,
   fetchConcordance,
+  fetchFavorites,
   fetchLemmaDetail,
   fetchLemmaList,
   fetchOutline,
   fetchPassage,
   fetchVerse,
+  fetchVersesTokens,
   generateAnalysis,
   fetchScopeBook,
+  updateFavorite,
+  updateFavoriteNote,
   updateLemmaNote,
   updateScopeBook,
 } from "~/server/api";
@@ -34,7 +38,21 @@ export const saveNoteAction = action(updateLemmaNote, "save-note");
 export const scopeBookQuery = query(fetchScopeBook, "scope-book");
 export const setScopeBookAction = action(updateScopeBook, "set-scope-book");
 
+/** The user's favourite verses (with memos), in Bible order. */
+export const favoritesQuery = query(fetchFavorites, "favorites");
+export const versesTokensQuery = query(fetchVersesTokens, "verses-tokens");
+// Favourite changes only touch the favourites list, so revalidate just that (not the open passage/concordance).
+export const setFavoriteAction = action(async (book: string, chapter: number, verse: number, on: boolean) => {
+  await updateFavorite(book, chapter, verse, on);
+  return json(null, { revalidate: favoritesQuery.key });
+}, "set-favorite");
+export const saveFavoriteNoteAction = action(async (book: string, chapter: number, verse: number, note: string) => {
+  const saved = await updateFavoriteNote(book, chapter, verse, note);
+  return json(saved, { revalidate: favoritesQuery.key });
+}, "save-favorite-note");
+
 export type { AnalysisRequest, AnalysisResponse } from "~/server/analysis";
+export type { Favorite } from "~/server/favorites";
 export type { ConcordancePage, LemmaDetail, LemmaListItem, LemmaSearchResult, PassageTokens, Token, VerseTokens } from "~/server/lexicon";
 
 /** Signed-in user or null. */

@@ -64,6 +64,13 @@
       "when": 1793065950164,
       "tag": "0008_notes_per_book",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1793196751493,
+      "tag": "0009_verse_favorites",
+      "breakpoints": true
     }
   ]
 }

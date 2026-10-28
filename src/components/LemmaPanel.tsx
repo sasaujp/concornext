@@ -1,6 +1,7 @@
 import { A, createAsync, useLocation, useSearchParams } from "@solidjs/router";
 import { ArrowLeft, ExternalLink, GraduationCap } from "lucide-solid";
 import { createEffect, For, Show, Suspense } from "solid-js";
+import { FavoriteButton } from "~/components/Favorite";
 import { GreekVerse, hitMarker } from "~/components/GreekVerse";
 import { MorphBadges } from "~/components/MorphBadges";
 import { NoteEditor } from "~/components/NoteEditor";
@@ -234,12 +235,15 @@ function ConcordanceVerse(props: {
     <li id={`v-${props.verse.book}-${props.verse.chapter}-${props.verse.verse}`}>
       <Card>
         <CardHeader class="flex-row items-center justify-between gap-2 space-y-0 p-3 pb-1 sm:p-4 sm:pb-2">
-          <A
-            href={verseHref(props.verse, { s: props.lemma.strongsId, w: props.verse.hits[0], from: props.returnTo })}
-            class="text-sm font-semibold hover:underline"
-          >
-            {displayRef(props.verse.book, props.verse.chapter, props.verse.verse)}
-          </A>
+          <span class="flex items-center gap-1">
+            <FavoriteButton book={props.verse.book} chapter={props.verse.chapter} verse={props.verse.verse} class="-ml-1" />
+            <A
+              href={verseHref(props.verse, { s: props.lemma.strongsId, w: props.verse.hits[0], from: props.returnTo })}
+              class="text-sm font-semibold hover:underline"
+            >
+              {displayRef(props.verse.book, props.verse.chapter, props.verse.verse)}
+            </A>
+          </span>
           <Show when={props.verse.hits.length > 1}>
             <Badge variant="secondary" class="font-normal">
               この節に {props.verse.hits.length} 回
