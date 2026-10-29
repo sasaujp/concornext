@@ -1,15 +1,20 @@
 import { A } from "@solidjs/router";
+import { Library } from "lucide-solid";
 import { For, Show } from "solid-js";
 import { na28Shift } from "~/components/GreekVerse";
 import { MorphBadges } from "~/components/MorphBadges";
 import { Badge } from "~/components/ui/badge";
+import { Button } from "~/components/ui/button";
 import type { Token } from "~/lib/queries";
 import { lexiconHref, readParams } from "~/lib/url";
 
 export const plainSurface = (t: Token) => t.surface.replace(/[¶,.;·:]+/g, "");
 
-/** Confirmed (STEPBible) data for one word: lemma(s) with gloss and morphology, then transliteration etc. */
-export function WordDetails(props: { token: Token }) {
+/**
+ * Confirmed (STEPBible) data for one word: lemma(s) with gloss and morphology, then transliteration etc.
+ * With `onLemma`, a lemma opens its concordance in place (ConcordanceDialog) instead of linking to the lexicon.
+ */
+export function WordDetails(props: { token: Token; onLemma?: (strongsId: string) => void }) {
   return (
     <div class="space-y-3 text-sm">
       <For each={props.token.parts}>
@@ -17,9 +22,20 @@ export function WordDetails(props: { token: Token }) {
           <div class="space-y-2">
             <div class="flex flex-wrap items-baseline gap-2">
               <span class="text-muted-foreground">辞書形</span>
-              <A href={lexiconHref(readParams({ s: p.strongsId }))} class="greek text-xl font-semibold hover:underline" lang="grc">
-                {p.lemma}
-              </A>
+              <Show
+                when={props.onLemma}
+                fallback={
+                  <A href={lexiconHref(readParams({ s: p.strongsId }))} class="greek text-xl font-semibold hover:underline" lang="grc">
+                    {p.lemma}
+                  </A>
+                }
+              >
+                {onLemma => (
+                  <button type="button" class="greek text-xl font-semibold hover:underline" lang="grc" onClick={() => onLemma()(p.strongsId)}>
+                    {p.lemma}
+                  </button>
+                )}
+              </Show>
               <Badge variant="outline" class="font-mono">
                 {p.strongsId}
               </Badge>
@@ -31,6 +47,13 @@ export function WordDetails(props: { token: Token }) {
               </Show>
             </div>
             <MorphBadges code={p.morphology} />
+            <Show when={props.onLemma}>
+              {onLemma => (
+                <Button variant="outline" size="sm" class="h-8" onClick={() => onLemma()(p.strongsId)}>
+                  <Library class="size-4" aria-hidden="true" /> {p.lemma} のコンコルダンス
+                </Button>
+              )}
+            </Show>
           </div>
         )}
       </For>

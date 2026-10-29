@@ -23,8 +23,31 @@ function Prose(props: { text: string }) {
   return <p class="whitespace-pre-line text-sm leading-7">{props.text}</p>;
 }
 
-export function AnalysisView(props: { result: Ok; tokens: Token[]; reference: string; english?: () => string | null | undefined }) {
+export function AnalysisView(props: {
+  result: Ok;
+  tokens: Token[];
+  reference: string;
+  english?: () => string | null | undefined;
+  /** Open a lemma's concordance (tapping a word or lemma). */
+  onLemma?: (strongsId: string) => void;
+}) {
   const a = () => props.result.analysis;
+  /** A word's surface (or its lemmas), tappable to open the concordance of its (first) lemma. */
+  const WordButton = (p: { token: Token; class: string; children: import("solid-js").JSX.Element }) => (
+    <Show when={props.onLemma} fallback={<span class={p.class} lang="grc">{p.children}</span>}>
+      {onLemma => (
+        <button
+          type="button"
+          class={`${p.class} text-left underline decoration-dotted decoration-1 underline-offset-4 hover:decoration-solid`}
+          lang="grc"
+          title="コンコルダンスを開く"
+          onClick={() => onLemma()(p.token.parts[0].strongsId)}
+        >
+          {p.children}
+        </button>
+      )}
+    </Show>
+  );
   const tokenAt = (pos: number) => props.tokens.find(t => t.position === pos);
   const roleOf = (pos: number) => a().wordRoles.find(w => w.position === pos)?.role;
   /** "Copy" for one tab: the section as Markdown, headed by the passage so it can be pasted into another AI. */
@@ -77,9 +100,9 @@ export function AnalysisView(props: { result: Ok; tokens: Token[]; reference: st
               {t => (
                 <div class="space-y-2 rounded-md border p-3">
                   <div class="flex flex-wrap items-center gap-2">
-                    <span class="greek text-xl font-semibold" lang="grc">
+                    <WordButton token={t()} class="greek text-xl font-semibold">
                       {clean(t().surface)}
-                    </span>
+                    </WordButton>
                     <span class="greek text-muted-foreground" lang="grc">
                       ← {t().parts.map(p => p.lemma).join(" + ")}
                     </span>
@@ -114,11 +137,15 @@ export function AnalysisView(props: { result: Ok; tokens: Token[]; reference: st
                     {t => (
                       <tr class={`border-b align-top ${t.position === a().targetWord.position ? "bg-highlight/40" : ""}`}>
                         <td class="py-1.5 pr-2 tabular-nums text-muted-foreground">{t.position}</td>
-                        <td class="greek py-1.5 pr-2 text-base" lang="grc">
-                          {clean(t.surface)}
+                        <td class="py-1.5 pr-2">
+                          <WordButton token={t} class="greek text-base">
+                            {clean(t.surface)}
+                          </WordButton>
                         </td>
-                        <td class="greek py-1.5 pr-2 text-base" lang="grc">
-                          {t.parts.map(p => p.lemma).join(" + ")}
+                        <td class="py-1.5 pr-2">
+                          <WordButton token={t} class="greek text-base">
+                            {t.parts.map(p => p.lemma).join(" + ")}
+                          </WordButton>
                         </td>
                         <td class="py-1.5 pr-2">
                           <For each={t.parts}>{p => <MorphBadges code={p.morphology} />}</For>
@@ -142,9 +169,9 @@ export function AnalysisView(props: { result: Ok; tokens: Token[]; reference: st
                   <Show when={tokenAt(item.position)}>
                     {t => (
                       <div class="flex flex-wrap items-center gap-2">
-                        <span class="greek text-xl font-semibold" lang="grc">
+                        <WordButton token={t()} class="greek text-xl font-semibold">
                           {clean(t().surface)}
-                        </span>
+                        </WordButton>
                         <span class="greek text-muted-foreground" lang="grc">
                           ← {t().parts.map(p => p.lemma).join(" + ")}
                         </span>

@@ -1,7 +1,8 @@
 import { A, createAsync, useAction, useParams, useSearchParams, useSubmission } from "@solidjs/router";
 import { ArrowLeft, BookOpen, ChevronLeft, ChevronRight, RefreshCw, Sparkles } from "lucide-solid";
-import { createMemo, For, Match, Show, Suspense, Switch } from "solid-js";
+import { createMemo, createSignal, For, Match, Show, Suspense, Switch } from "solid-js";
 import { AnalysisView } from "~/components/AnalysisView";
+import { ConcordanceDialog } from "~/components/ConcordanceDialog";
 import { FavoriteButton, FavoriteNote } from "~/components/Favorite";
 import { GreekVerse } from "~/components/GreekVerse";
 import { MorphBadges } from "~/components/MorphBadges";
@@ -46,7 +47,8 @@ export default function VersePage() {
 
   const from = () => safeReturnPath(typeof search.from === "string" ? search.from : null);
   const fromPassage = () => from()?.startsWith("/passage") ?? false;
-  const backLabel = () => (fromPassage() ? "本文に戻る" : from()?.startsWith("/favorites") ? "お気に入りに戻る" : "コンコルダンスに戻る");
+  const backLabel = () =>
+    fromPassage() ? "本文に戻る" : from()?.startsWith("/favorites") ? "お気に入りに戻る" : from()?.startsWith("/verse") ? "文法解析に戻る" : "コンコルダンスに戻る";
 
   // Return to the concordance (or the passage reader) and scroll back to this verse.
   const backHref = () => {
@@ -60,6 +62,9 @@ export default function VersePage() {
     const v = verse();
     return v ? bsbQuery([{ book: v.book, chapter: v.chapter, verse: v.verse }]) : null;
   });
+
+  /** Lemma whose concordance is open in the dialog. */
+  const [concordanceOf, setConcordanceOf] = createSignal<string | null>(null);
 
   const aorists = () => verse()?.tokens.filter(t => t.parts.some(p => decodeMorphology(p.morphology).isAorist)) ?? [];
 
@@ -156,7 +161,7 @@ export default function VersePage() {
                             </CardTitle>
                           </CardHeader>
                           <CardContent>
-                            <WordDetails token={t()} />
+                            <WordDetails token={t()} onLemma={setConcordanceOf} />
                           </CardContent>
                         </Card>
                       )}
@@ -202,6 +207,7 @@ export default function VersePage() {
                         position={selectedPos()!}
                         tokens={v().tokens}
                         english={() => english()?.verses[`${v().book}.${v().chapter}.${v().verse}`]}
+                        onLemma={setConcordanceOf}
                       />
                     )}
                   </Show>
@@ -211,6 +217,7 @@ export default function VersePage() {
           </Suspense>
         )}
       </Show>
+      <ConcordanceDialog strongsId={concordanceOf()} onClose={() => setConcordanceOf(null)} />
     </div>
   );
 }
@@ -223,6 +230,7 @@ function AnalysisSection(props: {
   position: number;
   tokens: import("~/lib/queries").Token[];
   english?: () => string | null | undefined;
+  onLemma?: (strongsId: string) => void;
 }) {
   const req = () => ({ book: props.book, chapter: props.chapter, verse: props.verse, strongsId: props.strongsId, position: props.position });
   const reqKey = () => JSON.stringify(req());
@@ -289,6 +297,7 @@ function AnalysisSection(props: {
                   result={r()}
                   tokens={props.tokens}
                   english={props.english}
+                  onLemma={props.onLemma}
                   reference={`${displayRef(props.book, props.chapter, props.verse)}（${bookByCode(props.book)?.en} ${props.chapter}:${props.verse}）`}
                 />
               )}

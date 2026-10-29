@@ -41,7 +41,7 @@ export function LemmaPanel(props: { strongsId: string }) {
   );
 }
 
-function LemmaHeader(props: { lemma: LemmaDetail }) {
+export function LemmaHeader(props: { lemma: LemmaDetail }) {
   const num = () => Number(props.lemma.strongsBase.slice(1));
   return (
     <header class="space-y-3">
@@ -105,10 +105,39 @@ function LemmaHeader(props: { lemma: LemmaDetail }) {
   );
 }
 
-function Concordance(props: { lemma: LemmaDetail }) {
+/**
+ * Book filter and page of a concordance. The lexicon page keeps them in the URL; the word dialog
+ * (ConcordanceDialog) keeps them locally so opening it does not touch the page's own URL.
+ */
+export interface ConcordanceState {
+  /** Explicit book filter ("all" = every book), or null to follow the header's book. */
+  book: () => string | null;
+  page: () => number;
+  setBook: (book: string | undefined) => void;
+  setPage: (page: number) => void;
+  /** Where verse links should return to. */
+  returnTo: () => string;
+}
+
+function useUrlConcordanceState(): ConcordanceState {
   const [search, setSearch] = useSearchParams<LexiconParams>();
   const location = useLocation();
   const params = () => readParams(search);
+  return {
+    book: () => params().book,
+    page: () => params().cp,
+    setBook: book => setSearch({ book, cp: undefined }),
+    setPage: n => {
+      setSearch({ cp: n === 1 ? undefined : String(n) });
+      document.getElementById("detail-scroll")?.scrollTo({ top: 0 });
+    },
+    returnTo: () => `${location.pathname}${location.search}`,
+  };
+}
+
+export function Concordance(props: { lemma: LemmaDetail; state?: ConcordanceState }) {
+  const state = props.state ?? useUrlConcordanceState();
+  const location = useLocation();
   const scope = createAsync(() => scopeBookQuery());
   /**
    * Concordance filter: an explicit ?book= wins ("all" = every book); otherwise the header's book,
@@ -121,8 +150,8 @@ function Concordance(props: { lemma: LemmaDetail }) {
   const concordanceArgs = async () => {
     const strongsId = props.lemma.strongsId;
     const books = props.lemma.books.map(x => x.code);
-    const explicit = params().book;
-    const cp = params().cp;
+    const explicit = state.book();
+    const cp = state.page();
     let book: string | null;
     if (explicit === ALL_BOOKS) book = null;
     else if (explicit) book = explicit;
@@ -147,10 +176,9 @@ function Concordance(props: { lemma: LemmaDetail }) {
     const b = props.lemma.books.find(x => x.code === code);
     return b ? `${b.ja}（${b.occurrences}回／${b.verses}節）` : code;
   };
-  const returnTo = () => `${location.pathname}${location.search}`;
-
   // Coming back from a verse page (#v-Book-C-V): scroll that verse into view once it is rendered.
   createEffect(() => {
+    if (props.state) return;
     const id = location.hash.slice(1);
     if (!id || !page()) return;
     requestAnimationFrame(() => document.getElementById(id)?.scrollIntoView({ block: "start" }));
@@ -165,7 +193,7 @@ function Concordance(props: { lemma: LemmaDetail }) {
           onChange={v => {
             // Kobalte also reports programmatic value changes (e.g. when the header scope applies); ignore those.
             if (!v || v === (page()?.book ?? ALL_BOOKS)) return;
-            setSearch({ book: v === ALL_BOOKS ? (scope() ? ALL_BOOKS : undefined) : v, cp: undefined });
+            state.setBook(v === ALL_BOOKS ? (scope() ? ALL_BOOKS : undefined) : v);
           }}
           options={bookOptions()}
           itemComponent={p => <SelectItem item={p.item}>{bookLabel(p.item.rawValue)}</SelectItem>}
@@ -195,7 +223,7 @@ function Concordance(props: { lemma: LemmaDetail }) {
             </Suspense>
             <ol class="space-y-3">
               <For each={p().verses}>
-                {v => <ConcordanceVerse verse={v} lemma={props.lemma} english={() => bsb()?.verses[`${v.book}.${v.chapter}.${v.verse}`]} returnTo={returnTo()} />}
+                {v => <ConcordanceVerse verse={v} lemma={props.lemma} english={() => bsb()?.verses[`${v.book}.${v.chapter}.${v.verse}`]} returnTo={state.returnTo()} />}
               </For>
             </ol>
             <Show when={totalPages() > 1}>
@@ -203,10 +231,7 @@ function Concordance(props: { lemma: LemmaDetail }) {
                 <Pagination
                   count={totalPages()}
                   page={p().page}
-                  onPageChange={n => {
-                    setSearch({ cp: n === 1 ? undefined : String(n) });
-                    document.getElementById("detail-scroll")?.scrollTo({ top: 0 });
-                  }}
+                  onPageChange={n => state.setPage(n)}
                   itemComponent={ip => <PaginationItem page={ip.page}>{ip.page}</PaginationItem>}
                   ellipsisComponent={() => <PaginationEllipsis />}
                 >
@@ -298,7 +323,7 @@ function ConcordanceVerse(props: {
   );
 }
 
-function HeaderSkeleton() {
+export function HeaderSkeleton() {
   return (
     <div class="space-y-3">
       <Skeleton class="h-12 w-48" />
@@ -308,7 +333,7 @@ function HeaderSkeleton() {
   );
 }
 
-function ConcordanceSkeleton() {
+export function ConcordanceSkeleton() {
   return (
     <div class="space-y-3">
       <For each={[1, 2, 3]}>{() => <Skeleton class="h-40 w-full" />}</For>

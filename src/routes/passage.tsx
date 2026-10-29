@@ -1,6 +1,7 @@
 import { A, createAsync, useLocation, useNavigate, useSearchParams } from "@solidjs/router";
-import { ChevronLeft, ChevronRight, GraduationCap, Library, NotebookPen, X } from "lucide-solid";
+import { ChevronLeft, ChevronRight, GraduationCap, NotebookPen, X } from "lucide-solid";
 import { createEffect, createMemo, createSignal, For, on, Show, Suspense } from "solid-js";
+import { ConcordanceDialog } from "~/components/ConcordanceDialog";
 import { FavoriteButton, useFavorites } from "~/components/Favorite";
 import { GreekVerse } from "~/components/GreekVerse";
 import { plainSurface, WordDetails } from "~/components/WordDetails";
@@ -10,7 +11,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "~/com
 import { Skeleton } from "~/components/ui/skeleton";
 import { BOOKS, bookByCode, CHAPTER_END, displayPassage, formatPassage, parsePassage, type Passage } from "~/lib/books";
 import { bsbQuery, outlineQuery, passageQuery, scopeBookQuery, type Token, type VerseTokens } from "~/lib/queries";
-import { lexiconHref, type PassageParams, passageHref, readParams, verseHref } from "~/lib/url";
+import { type PassageParams, passageHref, verseHref } from "~/lib/url";
 
 const EXAMPLES = ["Jhn.1.1-18", "Mat.5.1-12", "Rom.8", "1Co.13", "Php.2.5-11", "Heb.1.1-4"];
 
@@ -267,6 +268,8 @@ function PassageReader(props: { passage: Passage }) {
     }
     return out;
   });
+  /** Lemma whose concordance is open in the dialog. */
+  const [concordanceOf, setConcordanceOf] = createSignal<string | null>(null);
   const sameLemmaCount = () => [...sameLemma().values()].reduce((n, hits) => n + hits.length, 0);
 
   const returnTo = () => `${location.pathname}${location.search}`;
@@ -407,32 +410,20 @@ function PassageReader(props: { passage: Passage }) {
                       </Button>
                     </CardHeader>
                     <CardContent class="space-y-4">
-                      <WordDetails token={sel().token} />
-                      <div class="flex flex-wrap gap-2">
-                        <Button
-                          as={A}
-                          href={verseHref(sel().verse, { s: sel().token.parts[0].strongsId, w: sel().token.position, from: returnTo() })}
-                          size="sm"
-                        >
-                          <GraduationCap class="size-4" aria-hidden="true" /> この節を解析
-                        </Button>
-                        <For each={sel().token.parts}>
-                          {p => (
-                            <Button as={A} href={lexiconHref(readParams({ s: p.strongsId }))} variant="outline" size="sm">
-                              <Library class="size-4" aria-hidden="true" />
-                              <span class="greek" lang="grc">
-                                {p.lemma}
-                              </span>
-                              のコンコルダンス
-                            </Button>
-                          )}
-                        </For>
-                      </div>
+                      <WordDetails token={sel().token} onLemma={setConcordanceOf} />
+                      <Button
+                        as={A}
+                        href={verseHref(sel().verse, { s: sel().token.parts[0].strongsId, w: sel().token.position, from: returnTo() })}
+                        size="sm"
+                      >
+                        <GraduationCap class="size-4" aria-hidden="true" /> この節を解析
+                      </Button>
                     </CardContent>
                   </Card>
                 )}
               </Show>
             </aside>
+            <ConcordanceDialog strongsId={concordanceOf()} onClose={() => setConcordanceOf(null)} />
           </div>
         )}
       </Show>
