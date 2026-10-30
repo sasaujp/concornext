@@ -1,17 +1,18 @@
-import { A } from "@solidjs/router";
+import { A, createAsync } from "@solidjs/router";
 import { Library } from "lucide-solid";
-import { For, Show } from "solid-js";
+import { For, Show, Suspense } from "solid-js";
 import { na28Shift } from "~/components/GreekVerse";
 import { MorphBadges } from "~/components/MorphBadges";
+import { NoteEditor } from "~/components/NoteEditor";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
-import type { Token } from "~/lib/queries";
+import { lemmaDetailQuery, type Token } from "~/lib/queries";
 import { lexiconHref, readParams } from "~/lib/url";
 
 export const plainSurface = (t: Token) => t.surface.replace(/[¶,.;·:]+/g, "");
 
 /**
- * Confirmed (STEPBible) data for one word: lemma(s) with gloss and morphology, then transliteration etc.
+ * Confirmed (STEPBible) data for one word: lemma(s) with gloss, morphology and the user's memo, then transliteration etc.
  * With `onLemma`, a lemma opens its concordance in place (ConcordanceDialog) instead of linking to the lexicon.
  */
 export function WordDetails(props: { token: Token; onLemma?: (strongsId: string) => void }) {
@@ -47,6 +48,9 @@ export function WordDetails(props: { token: Token; onLemma?: (strongsId: string)
               </Show>
             </div>
             <MorphBadges code={p.morphology} />
+            <Suspense>
+              <LemmaMemo strongsId={p.strongsId} />
+            </Suspense>
             <Show when={props.onLemma}>
               {onLemma => (
                 <Button variant="outline" size="sm" class="h-8" onClick={() => onLemma()(p.strongsId)}>
@@ -71,4 +75,10 @@ export function WordDetails(props: { token: Token; onLemma?: (strongsId: string)
       </dl>
     </div>
   );
+}
+
+/** The user's memo for a lemma (same editor as the lexicon page); shares the lemma-detail query with ConcordanceDialog. */
+function LemmaMemo(props: { strongsId: string }) {
+  const detail = createAsync(() => lemmaDetailQuery(props.strongsId));
+  return <Show when={detail()}>{d => <NoteEditor strongsId={d().strongsId} notes={d().notes} />}</Show>;
 }
