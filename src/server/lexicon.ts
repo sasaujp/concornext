@@ -19,7 +19,9 @@ export interface LemmaNote {
 export interface LemmaListItem {
   id: number;
   strongsId: string;
-  greekLemma: string;
+  /** Headword in Greek or Hebrew script. */
+  lemma: string;
+  language: "grc" | "hbo" | "arc";
   altLemma: string | null;
   transliteration: string | null;
   gloss: string | null;
@@ -45,7 +47,8 @@ export interface LemmaSearchResult {
 const listColumns = {
   id: lemmas.id,
   strongsId: lemmas.strongsId,
-  greekLemma: lemmas.greekLemma,
+  lemma: lemmas.lemma,
+  language: lemmas.language,
   altLemma: lemmas.altLemma,
   transliteration: lemmas.transliteration,
   gloss: lemmas.gloss,
@@ -187,7 +190,7 @@ export async function searchLemmas(
   if (sort === "memo") {
     // Natural ordering of memo text isn't expressible in SQLite; memo-filtered sets are small, so sort here.
     const all = ((await scoped(db.select(columns).from(lemmas).$dynamic())) as Row[]).map(toItem);
-    all.sort((a, b) => compareNotes(a.notes, b.notes) || a.greekLemma.localeCompare(b.greekLemma));
+    all.sort((a, b) => compareNotes(a.notes, b.notes) || a.lemma.localeCompare(b.lemma));
     return { items: all.slice((page - 1) * pageSize, page * pageSize), total: all.length, page, pageSize, mode, book: book?.code ?? null };
   }
 
@@ -327,7 +330,7 @@ const tokenColumns = {
   wordType: occurrences.wordType,
   lemmaId: occurrences.lemmaId,
   strongsId: lemmas.strongsId,
-  lemma: lemmas.greekLemma,
+  lemma: lemmas.lemma,
   gloss: lemmas.gloss,
   glossJa: lemmas.glossJa,
   morphology: occurrences.morphologyCode,

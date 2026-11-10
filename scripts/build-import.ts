@@ -5,26 +5,26 @@
  *
  * Output: data/sql/*.sql (applied in lexical order by scripts/apply-import.ts).
  * The first file clears the data tables, so the whole import is re-runnable.
- * Only words that belong to the NA28 text (edition list contains NA28) are imported.
+ *
+ * - NT (TAGNT): only words that belong to the NA28 text (edition list contains NA28).
+ * - OT (TAHOT): the translators' text — Leningrad with the Qere, restored text kept, words added from the
+ *   LXX skipped (see isImported). Hebrew (MT) chapter/verse numbering; the English one is kept per word.
+ *   Only root words are concordance rows; prefixes/suffixes are stored in the word's `segments`.
  */
 import { createReadStream } from "node:fs";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { createInterface } from "node:readline";
+import { bookByCode } from "../src/lib/books";
 import { normalizeGreek, normalizeLatin, stripPunctuation } from "../src/lib/greek";
-import { isNA28, parseTagntLine, parseTbesgLine, strongsBase, type TagntToken, type TbesgEntry } from "./tagnt";
+import { normalizeHebrew } from "../src/lib/hebrew";
+import { TAHOT_FILES, isImported, parseTahotLine, parseTbeshLine, rootSegments, segmentsJson, type TahotSegment, type TahotToken, type TbeshEntry } from "./tahot";
+import { isNA28, lemmaIdFor, parseTagntLine, parseTbesgLine, strongsBase, type TagntToken, type TbesgEntry } from "./tagnt";
 
 const RAW = join(process.cwd(), "data", "raw");
 const OUT = join(process.cwd(), "data", "sql");
 const ROWS_PER_STATEMENT = 100;
 const STATEMENTS_PER_FILE = 150;
-
-/** Stable lemma ID derived from the extended Strong's number (G3056 → 91680, G2491G → 74737). */
-export function lemmaIdFor(strongs: string): number {
-  const m = strongs.match(/^G(\d+)([A-Z]?)$/);
-  if (!m) throw new Error(`Bad Strong's number ${strongs}`);
-  return Number(m[1]) * 30 + (m[2] ? m[2].charCodeAt(0) - 64 : 0);
-}
 
 function q(v: string | number | null | undefined): string {
   if (v === null || v === undefined) return "NULL";
@@ -42,6 +42,15 @@ interface OccRow {
   token: TagntToken;
   part: number;
   morph: string;
+}
+
+interface OtOccRow {
+  lemmaId: number;
+  token: TahotToken;
+  bookOrd: number;
+  position: number;
+  part: number;
+  segment: TahotSegment;
 }
 
 async function main() {
@@ -94,17 +103,64 @@ async function main() {
   }
   console.log(`TAGNT rows: ${total}, NA28 tokens: ${seen.size}, non-NA28 skipped: ${skipped}, occurrence rows: ${occurrences.length}`);
 
-  // --- Lemmas
-  const lemmaStats = new Map<number, { strongs: string; count: number; verses: Set<string> }>();
-  const strongsById = new Map<number, string>();
-  for (const o of occurrences) {
-    const p = o.token.parts[o.part];
-    strongsById.set(o.lemmaId, p.strongs);
-    let s = lemmaStats.get(o.lemmaId);
-    if (!s) lemmaStats.set(o.lemmaId, (s = { strongs: p.strongs, count: 0, verses: new Set() }));
-    s.count++;
-    s.verses.add(`${o.token.bookOrd}.${o.token.chapter}.${o.token.verse}`);
+  // --- TBESH lexicon (Hebrew / Aramaic). Its Meaning column is not read (Abridged BDB © Online Bible).
+  const tbesh = new Map<string, TbeshEntry>();
+  const tbeshByBase = new Map<string, TbeshEntry>();
+  await readLines(join(RAW, "TBESH.txt"), line => {
+    const e = parseTbeshLine(line);
+    if (!e) return;
+    if (!tbesh.has(e.strongs)) tbesh.set(e.strongs, e);
+    const base = strongsBase(e.strongs);
+    if (!tbeshByBase.has(base)) tbeshByBase.set(base, e);
+  });
+  console.log(`TBESH entries: ${tbesh.size}`);
+
+  // --- TAHOT tokens, grouped by MT verse (words are renumbered 1…n within each verse)
+  const otVerses = new Map<string, { bookOrd: number; tokens: TahotToken[] }>();
+  let otRows = 0;
+  let otSkipped = 0;
+  for (const f of TAHOT_FILES) {
+    await readLines(join(RAW, f), line => {
+      const t = parseTahotLine(line);
+      if (!t) return;
+      otRows++;
+      if (!isImported(t)) {
+        otSkipped++;
+        return;
+      }
+      const book = bookByCode(t.book);
+      if (!book || book.testament !== "OT") throw new Error(`Unknown OT book ${t.book}`);
+      const key = `${book.ord}.${t.chapter}.${t.verse}`;
+      let v = otVerses.get(key);
+      if (!v) otVerses.set(key, (v = { bookOrd: book.ord, tokens: [] }));
+      v.tokens.push(t);
+    });
   }
+  const otOccurrences: OtOccRow[] = [];
+  let otTokens = 0;
+  for (const [key, v] of otVerses) {
+    v.tokens.sort((a, b) => a.sortKey - b.sortKey);
+    v.tokens.forEach((t, i) => {
+      if (i > 0 && v.tokens[i - 1].sortKey === t.sortKey) throw new Error(`Duplicate token ${key}#${t.wordNo}`);
+      const roots = rootSegments(t);
+      if (roots.length === 0) throw new Error(`No root word for ${key}#${t.wordNo}`);
+      otTokens++;
+      roots.forEach((s, part) => otOccurrences.push({ lemmaId: lemmaIdFor(s.strongs!), token: t, bookOrd: v.bookOrd, position: i + 1, part, segment: s }));
+    });
+  }
+  console.log(`TAHOT rows: ${otRows}, imported tokens: ${otTokens}, skipped (LXX additions, unread Ketiv): ${otSkipped}, occurrence rows: ${otOccurrences.length}`);
+
+  // --- Lemmas
+  const lemmaStats = new Map<number, { strongs: string; count: number; verses: Set<string>; aramaic: number }>();
+  function addStat(id: number, strongs: string, verseKey: string, aramaic: boolean) {
+    let s = lemmaStats.get(id);
+    if (!s) lemmaStats.set(id, (s = { strongs, count: 0, verses: new Set(), aramaic: 0 }));
+    s.count++;
+    s.verses.add(verseKey);
+    if (aramaic) s.aramaic++;
+  }
+  for (const o of occurrences) addStat(o.lemmaId, o.token.parts[o.part].strongs, `${o.token.bookOrd}.${o.token.chapter}.${o.token.verse}`, false);
+  for (const o of otOccurrences) addStat(o.lemmaId, o.segment.strongs!, `${o.bookOrd}.${o.token.chapter}.${o.token.verse}`, o.token.language === "arc");
 
   await rm(OUT, { recursive: true, force: true });
   await mkdir(OUT, { recursive: true });
@@ -139,9 +195,40 @@ async function main() {
   ]);
 
   const missingLex: string[] = [];
+  const missingHebLex: string[] = [];
   const lemmaRows: (string | number | null)[][] = [];
   const defRows: (string | number | null)[][] = [];
+  // Most frequent root form per Hebrew lemma, as a fallback headword when TBESH lacks the entry.
+  const hebForms = new Map<string, Map<string, number>>();
+  for (const o of otOccurrences) {
+    const m = hebForms.get(o.segment.strongs!) ?? new Map<string, number>();
+    m.set(o.segment.hebrew, (m.get(o.segment.hebrew) ?? 0) + 1);
+    hebForms.set(o.segment.strongs!, m);
+  }
   for (const [id, s] of [...lemmaStats].sort((a, b) => a[0] - b[0])) {
+    if (s.strongs.startsWith("H")) {
+      const lex = tbesh.get(s.strongs) ?? tbeshByBase.get(strongsBase(s.strongs));
+      if (!tbesh.has(s.strongs)) missingHebLex.push(`${s.strongs}${lex ? `→${lex.strongs}` : "(none)"}`);
+      const hebrew = lex?.hebrew || [...(hebForms.get(s.strongs) ?? new Map<string, number>())].sort((a, b) => b[1] - a[1])[0]?.[0] || s.strongs;
+      lemmaRows.push([
+        id,
+        s.strongs,
+        strongsBase(s.strongs),
+        s.aramaic * 2 > s.count ? "arc" : "hbo",
+        hebrew,
+        normalizeHebrew(hebrew),
+        null,
+        null,
+        lex?.transliteration ?? null,
+        lex?.transliteration ? normalizeLatin(lex.transliteration) : null,
+        lex?.gloss ?? null,
+        glossesJa[s.strongs] ?? null,
+        lex?.pos ?? null,
+        s.count,
+        s.verses.size,
+      ]);
+      continue;
+    }
     // Exact extended Strong's first; otherwise the first TBESG entry filed under the plain number
     // (TAGNT sometimes tags e.g. G2453 where TBESG only has G2453G).
     const lex = lexicon.get(s.strongs) ?? lexiconByBase.get(strongsBase(s.strongs));
@@ -155,6 +242,7 @@ async function main() {
       id,
       s.strongs,
       strongsBase(s.strongs),
+      "grc",
       greek,
       normalizeGreek(greek),
       alt,
@@ -170,13 +258,14 @@ async function main() {
     if (lex?.definition) defRows.push([id, lex.definition]);
   }
   if (missingLex.length) console.warn(`Lemmas without exact TBESG entry (${missingLex.length}): ${missingLex.join(" ")}`);
-  console.log(`Lemmas: ${lemmaRows.length} (Japanese gloss: ${lemmaRows.filter(r => r[10]).length})`);
+  if (missingHebLex.length) console.warn(`Lemmas without exact TBESH entry (${missingHebLex.length}): ${missingHebLex.join(" ")}`);
+  console.log(`Lemmas: ${lemmaRows.length} (Hebrew/Aramaic: ${lemmaRows.filter(r => r[3] !== "grc").length}, Japanese gloss: ${lemmaRows.filter(r => r[11]).length})`);
 
   await emit(
     "lemmas",
     inserts(
       "lemmas",
-      ["id", "strongs_id", "strongs_base", "greek_lemma", "lemma_plain", "alt_lemma", "alt_lemma_plain", "transliteration", "translit_plain", "gloss", "gloss_ja", "lex_pos", "occurrence_count", "verse_count"],
+      ["id", "strongs_id", "strongs_base", "language", "lemma", "lemma_plain", "alt_lemma", "alt_lemma_plain", "transliteration", "translit_plain", "gloss", "gloss_ja", "lex_pos", "occurrence_count", "verse_count"],
       lemmaRows,
     ),
   );
@@ -213,13 +302,45 @@ async function main() {
       t.wordType,
       t.editions,
       t.instance,
+      null,
+      null,
+      null,
+      null,
+      null,
     ];
   });
+  for (const o of otOccurrences) {
+    const t = o.token;
+    occRows.push([
+      occId++,
+      o.lemmaId,
+      o.bookOrd,
+      t.book,
+      t.chapter,
+      t.verse,
+      o.position,
+      o.part,
+      t.surface,
+      normalizeHebrew(t.surface),
+      t.transliteration || null,
+      t.transliteration ? normalizeLatin(t.transliteration) : null,
+      t.english,
+      o.segment.morph ?? "",
+      t.wordType,
+      "",
+      t.instance,
+      t.engChapter,
+      t.engVerse,
+      segmentsJson(t.segments),
+      t.ketiv,
+      t.ketivGloss,
+    ]);
+  }
   await emit(
     "occurrences",
     inserts(
       "occurrences",
-      ["id", "lemma_id", "book_ord", "book", "chapter", "verse", "token_position", "part", "surface_form", "surface_plain", "transliteration", "translit_plain", "english_gloss", "morphology_code", "word_type", "edition_info", "instance"],
+      ["id", "lemma_id", "book_ord", "book", "chapter", "verse", "token_position", "part", "surface_form", "surface_plain", "transliteration", "translit_plain", "english_gloss", "morphology_code", "word_type", "edition_info", "instance", "eng_chapter", "eng_verse", "segments", "ketiv", "ketiv_gloss"],
       occRows,
     ),
   );
@@ -229,6 +350,9 @@ async function main() {
     filter: "edition contains NA28",
     tokens: seen.size,
     occurrenceRows: occurrences.length,
+    otFilter: "TAHOT: Leningrad + Qere + restored text; LXX additions excluded",
+    otTokens,
+    otOccurrenceRows: otOccurrences.length,
     lemmas: lemmaRows.length,
   });
   await emit("version", [

@@ -9,22 +9,23 @@ export const dataVersions = sqliteTable("data_versions", {
   importedAt: text("imported_at").notNull(),
 });
 
-/** One row per extended (disambiguated) Strong's number, e.g. G3056, G2491G. */
+/** One row per extended (disambiguated) Strong's number, e.g. G3056, G2491G, H1254A. */
 export const lemmas = sqliteTable(
   "lemmas",
   {
     id: integer("id").primaryKey(),
-    strongsId: text("strongs_id").notNull(), // dStrong / extended Strong's (G2491G)
-    strongsBase: text("strongs_base").notNull(), // plain Strong's number (G2491)
-    greekLemma: text("greek_lemma").notNull(),
-    lemmaPlain: text("lemma_plain").notNull(), // accent-stripped, lowercase, for searching
+    strongsId: text("strongs_id").notNull(), // dStrong / extended Strong's (G2491G, H1254A)
+    strongsBase: text("strongs_base").notNull(), // plain Strong's number (G2491, H1254)
+    language: text("language", { enum: ["grc", "hbo", "arc"] }).notNull().default("grc"), // Greek, Hebrew, Aramaic
+    lemma: text("lemma").notNull(), // headword in Greek or Hebrew script
+    lemmaPlain: text("lemma_plain").notNull(), // search key: accent-stripped lowercase Greek / Hebrew consonants
     altLemma: text("alt_lemma"), // TAGNT headword when it differs from TBESG (e.g. G3165 μέ → ἐγώ)
     altLemmaPlain: text("alt_lemma_plain"),
     transliteration: text("transliteration"),
     translitPlain: text("translit_plain"), // ASCII-folded transliteration (archē → arche)
     gloss: text("gloss"),
     glossJa: text("gloss_ja"), // Japanese gloss (data/glosses-ja.json, translated from `gloss` with Claude)
-    lexPos: text("lex_pos"), // TBESG part-of-speech code (e.g. G:N-M)
+    lexPos: text("lex_pos"), // TBESG / TBESH part-of-speech code (e.g. G:N-M, H:V, A:N-M)
     occurrenceCount: integer("occurrence_count").notNull().default(0),
     verseCount: integer("verse_count").notNull().default(0),
   },
@@ -38,7 +39,7 @@ export const lemmas = sqliteTable(
   ],
 );
 
-/** Long lexicon entries (TBESG / Abbott-Smith), kept apart so list queries stay small. */
+/** Long lexicon entries (TBESG / Abbott-Smith; BDB outline + Strong's for Hebrew), kept apart so list queries stay small. */
 export const lemmaDefinitions = sqliteTable("lemma_definitions", {
   lemmaId: integer("lemma_id")
     .primaryKey()
@@ -47,8 +48,11 @@ export const lemmaDefinitions = sqliteTable("lemma_definitions", {
 });
 
 /**
- * Every word token of the NA28 text as tagged in TAGNT. Crasis forms (κἀγώ …) yield one row
- * per component lemma sharing the same token_position, distinguished by `part`.
+ * Every word token of the NA28 text as tagged in TAGNT, and of the Hebrew OT as tagged in TAHOT.
+ * Crasis forms (κἀγώ …) and Hebrew rows with several root words yield one row per component lemma
+ * sharing the same token_position, distinguished by `part`. Hebrew prefixes and suffixes are not
+ * rows of their own: they are kept in `segments` of the word they belong to.
+ * OT chapter/verse use the Hebrew (MT) numbering; eng_chapter/eng_verse give the English (BSB) one.
  */
 export const occurrences = sqliteTable(
   "occurrences",
@@ -57,21 +61,26 @@ export const occurrences = sqliteTable(
     lemmaId: integer("lemma_id")
       .notNull()
       .references(() => lemmas.id),
-    bookOrd: integer("book_ord").notNull(), // 1 = Matthew … 27 = Revelation
-    book: text("book").notNull(), // TAGNT/OSIS-style code: Mat, Jhn, 1Co …
+    bookOrd: integer("book_ord").notNull(), // 1 = Genesis … 39 = Malachi, 40 = Matthew … 66 = Revelation
+    book: text("book").notNull(), // TAGNT/TAHOT code: Gen, Psa, Mat, Jhn, 1Co …
     chapter: integer("chapter").notNull(),
     verse: integer("verse").notNull(),
-    tokenPosition: integer("token_position").notNull(), // TAGNT word number within the verse (#01 → 1)
-    part: integer("part").notNull().default(0), // component index for crasis tokens
-    surfaceForm: text("surface_form").notNull(), // Greek as printed, incl. trailing punctuation
+    tokenPosition: integer("token_position").notNull(), // word number within the verse (TAGNT #01 → 1; TAHOT renumbered 1…n)
+    part: integer("part").notNull().default(0), // component index for crasis / multi-root tokens
+    surfaceForm: text("surface_form").notNull(), // Greek / Hebrew as printed, incl. trailing punctuation
     surfacePlain: text("surface_plain").notNull(),
     transliteration: text("transliteration"),
     translitPlain: text("translit_plain"), // search key (see normalizeLatin), e.g. "Egeneto" → "egeneto"
     englishGloss: text("english_gloss"), // TAGNT contextual English (BSB-based)
-    morphologyCode: text("morphology_code").notNull(), // e.g. V-2ADI-3S
-    wordType: text("word_type").notNull(), // TAGNT word type, e.g. NKO, N(k)O
-    editionInfo: text("edition_info").notNull(), // e.g. NA28+NA27+Tyn+SBL+WH+Treg+TR+Byz
-    instance: text("instance"), // TAGNT sStrong+Instance, e.g. G3056_B
+    morphologyCode: text("morphology_code").notNull(), // e.g. V-2ADI-3S; Hebrew: the root's TEHMC code, e.g. HVqp3ms
+    wordType: text("word_type").notNull(), // TAGNT word type (NKO, N(k)O) / TAHOT source type (L, Q(K), R)
+    editionInfo: text("edition_info").notNull(), // e.g. NA28+NA27+Tyn+SBL+WH+Treg+TR+Byz; empty for the OT
+    instance: text("instance"), // sStrong+Instance, e.g. G3056_B, H0853_A
+    engChapter: integer("eng_chapter"), // OT: English (BSB) chapter of this word; NULL for the NT
+    engVerse: integer("eng_verse"), // OT: English verse (Psalm titles are verse 0)
+    segments: text("segments"), // OT: JSON array of the word's segments (prefixes, root(s), suffixes)
+    ketiv: text("ketiv"), // OT Qere words: the Ketiv (written) form
+    ketivGloss: text("ketiv_gloss"), // …and its English gloss when the meaning differs
   },
   t => [
     index("occ_lemma_ref_idx").on(t.lemmaId, t.bookOrd, t.chapter, t.verse, t.tokenPosition),

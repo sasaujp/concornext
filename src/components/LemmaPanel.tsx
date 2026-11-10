@@ -47,7 +47,7 @@ export function LemmaHeader(props: { lemma: LemmaDetail }) {
     <header class="space-y-3">
       <div class="flex flex-wrap items-baseline gap-x-4 gap-y-1">
         <h1 class="greek text-4xl font-bold leading-tight sm:text-5xl" lang="grc">
-          {props.lemma.greekLemma}
+          {props.lemma.lemma}
         </h1>
         <span class="text-lg text-muted-foreground">{props.lemma.transliteration}</span>
         <Show when={props.lemma.altLemma}>

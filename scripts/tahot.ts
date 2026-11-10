@@ -213,3 +213,19 @@ export function parseTbeshLine(line: string): TbeshEntry | null {
     gloss: (cols[6] ?? "").trim(),
   };
 }
+
+/** Compact JSON for a Hebrew word's segments (k = kind, h = Hebrew, t = transliteration, s = dStrong, m = morphology, p = trailing punctuation, c = tag continues into the next word). */
+export function segmentsJson(segments: TahotSegment[]): string | null {
+  if (segments.length < 2) return null;
+  return JSON.stringify(
+    segments.map(s => ({
+      k: s.kind,
+      h: s.hebrew,
+      t: s.transliteration || undefined,
+      s: s.strongs ?? undefined,
+      m: s.morph ?? undefined,
+      p: s.trailing || undefined,
+      c: s.continuesNext || undefined,
+    })),
+  );
+}

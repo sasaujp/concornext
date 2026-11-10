@@ -111,13 +111,30 @@ export function parseTbesgLine(line: string): TbesgEntry | null {
   };
 }
 
-/** Plain Strong's number without the disambiguation letter: G2491G → G2491. */
+/** Plain Strong's number without the disambiguation letter: G2491G → G2491, H2148v → H2148. */
 export function strongsBase(strongs: string): string {
-  return strongs.replace(/[A-Z]$/, "");
+  return strongs.replace(/[A-Za-z]$/, "");
 }
 
 /** Deterministic ordering key so lemma IDs stay stable across imports. */
 export function strongsSortKey(strongs: string): [number, string] {
   const m = strongs.match(/^G(\d+)([A-Z]?)$/);
   return m ? [Number(m[1]), m[2]] : [Number.MAX_SAFE_INTEGER, strongs];
+}
+
+/**
+ * Stable lemma ID derived from the extended Strong's number.
+ * Greek: G3056 → 91680, G2491G → 74737. Hebrew: 1,000,000 + number × 60 + letter (A–Z → 1–26, a–z → 27–52),
+ * e.g. H1254A → 1075241, H2148v → 1128928.
+ */
+export function lemmaIdFor(strongs: string): number {
+  const g = strongs.match(/^G(\d+)([A-Z]?)$/);
+  if (g) return Number(g[1]) * 30 + (g[2] ? g[2].charCodeAt(0) - 64 : 0);
+  const h = strongs.match(/^H(\d+)([A-Za-z]?)$/);
+  if (h) {
+    const c = h[2];
+    const letter = !c ? 0 : c <= "Z" ? c.charCodeAt(0) - 64 : c.charCodeAt(0) - 96 + 26;
+    return 1_000_000 + Number(h[1]) * 60 + letter;
+  }
+  throw new Error(`Bad Strong's number ${strongs}`);
 }

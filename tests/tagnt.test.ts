@@ -11,7 +11,7 @@ describe("parseTagntLine", () => {
     );
     expect(t).toMatchObject({
       book: "Jhn",
-      bookOrd: 4,
+      bookOrd: 43,
       chapter: 1,
       verse: 6,
       position: 1,

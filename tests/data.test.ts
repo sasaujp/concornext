@@ -7,6 +7,7 @@ import { execFileSync } from "node:child_process";
 import { describe, expect, it } from "vitest";
 import { decodeMorphology } from "~/lib/morph";
 import { normalizeGreek, normalizeLatin } from "~/lib/greek";
+import { normalizeHebrew } from "~/lib/hebrew";
 
 function d1<T = Record<string, unknown>>(sql: string): T[] {
   const out = execFileSync("pnpm", ["exec", "wrangler", "d1", "execute", "concornext", "--local", "--json", "--command", sql], {
@@ -70,8 +71,46 @@ describe.skipIf(!available)("STEPBible data in local D1", () => {
   });
 
   it("only imports NA28 words", () => {
-    const [r] = d1<{ n: number }>(`SELECT count(*) AS n FROM occurrences WHERE edition_info NOT LIKE '%NA28%'`);
+    const [r] = d1<{ n: number }>(`SELECT count(*) AS n FROM occurrences WHERE book_ord >= 40 AND edition_info NOT LIKE '%NA28%'`);
     expect(r.n).toBe(0);
+  });
+});
+
+describe.skipIf(!available)("Hebrew OT in local D1", () => {
+  it("imports every OT book with MT verse numbering", () => {
+    const [r] = d1<{ books: number; minOrd: number; maxOrd: number; occ: number }>(
+      `SELECT count(DISTINCT book) AS books, min(book_ord) AS minOrd, max(book_ord) AS maxOrd, count(*) AS occ FROM occurrences WHERE book_ord <= 39`,
+    );
+    expect(r).toMatchObject({ books: 39, minOrd: 1, maxOrd: 39 });
+    expect(r.occ).toBeGreaterThan(300000);
+    // Psalm 51: the title is verse 1–2 in MT, verse 0 in English; MT 51:3 is English 51:1.
+    const [p] = d1<{ eng_chapter: number; eng_verse: number }>(`SELECT eng_chapter, eng_verse FROM occurrences WHERE book = 'Psa' AND chapter = 51 AND verse = 3 LIMIT 1`);
+    expect(p).toEqual({ eng_chapter: 51, eng_verse: 1 });
+    // Malachi has 3 chapters in MT (English 4:1 = MT 3:19).
+    const [m] = d1<{ c: number }>(`SELECT max(chapter) AS c FROM occurrences WHERE book = 'Mal'`);
+    expect(m.c).toBe(3);
+  });
+
+  it("counts בָּרָא (H1254A) and keeps prefixes out of the concordance", () => {
+    const [bara] = d1<{ occurrence_count: number; language: string; lemma: string }>(`SELECT occurrence_count, language, lemma FROM lemmas WHERE strongs_id = 'H1254A'`);
+    // STEPBible orders the marks consonant–dagesh–vowel (not Unicode canonical order), so compare consonants.
+    expect({ ...bara, lemma: normalizeHebrew(bara.lemma) }).toEqual({ occurrence_count: 53, language: "hbo", lemma: "ברא" });
+    // ו "and", ה "the", ב "in" are prefixes, not concordance lemmas. (Pronoun suffixes can be lemmas:
+    // TAHOT marks them as the root of inflected prepositions such as בּוֹ "in it" = ב + {H9033}.)
+    const [affix] = d1<{ n: number }>(`SELECT count(*) AS n FROM lemmas WHERE strongs_id IN ('H9002', 'H9009', 'H9003')`);
+    expect(affix.n).toBe(0);
+  });
+
+  it("reads the Qere, keeps the Ketiv, and leaves out LXX additions", () => {
+    const [q] = d1<{ surface_form: string; ketiv: string }>(`SELECT surface_form, ketiv FROM occurrences WHERE book = 'Gen' AND chapter = 8 AND verse = 17 AND ketiv IS NOT NULL`);
+    expect(q).toEqual({ surface_form: "הַיְצֵ֣א", ketiv: "הוֹצֵא" });
+    const [x] = d1<{ n: number }>(`SELECT count(*) AS n FROM occurrences WHERE book_ord <= 39 AND word_type LIKE 'X%'`);
+    expect(x.n).toBe(0);
+  });
+
+  it("marks Aramaic lemmas", () => {
+    const [r] = d1<{ language: string }>(`SELECT language FROM lemmas WHERE strongs_id = 'H1768'`);
+    expect(r.language).toBe("arc");
   });
 });
 
@@ -104,8 +143,8 @@ describe.skipIf(!available)("lemma memos", () => {
 });
 
 describe.skipIf(!available)("Japanese glosses", () => {
-  it("has a Japanese gloss for every lemma", () => {
-    const [r] = d1<{ total: number; ja: number }>(`SELECT count(*) AS total, sum(gloss_ja IS NOT NULL AND gloss_ja <> '') AS ja FROM lemmas`);
+  it("has a Japanese gloss for every Greek lemma", () => {
+    const [r] = d1<{ total: number; ja: number }>(`SELECT count(*) AS total, sum(gloss_ja IS NOT NULL AND gloss_ja <> '') AS ja FROM lemmas WHERE language = 'grc'`);
     expect(r.ja).toBe(r.total);
     const [l] = d1<{ gloss_ja: string }>(`SELECT gloss_ja FROM lemmas WHERE strongs_id = 'G3056'`);
     expect(l.gloss_ja).toBe("ことば");

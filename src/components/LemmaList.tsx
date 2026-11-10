@@ -153,7 +153,7 @@ export function LemmaList() {
                         aria-current={selected() ? "true" : undefined}
                       >
                         <span class="greek min-w-0 shrink-0 text-xl font-semibold leading-normal" lang="grc">
-                          {item.greekLemma}
+                          {item.lemma}
                         </span>
                         <span class="min-w-0 flex-1 text-sm">
                           <span class="block truncate">

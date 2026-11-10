@@ -24,7 +24,7 @@ const CONCURRENCY = 4;
 
 interface Row {
   strongs_id: string;
-  greek_lemma: string;
+  lemma: string;
   alt_lemma: string | null;
   transliteration: string | null;
   gloss: string | null;
@@ -41,8 +41,9 @@ function apiKey(): string {
 
 function loadLemmas(): Row[] {
   const sql =
-    "SELECT l.strongs_id, l.greek_lemma, l.alt_lemma, l.transliteration, l.gloss, l.lex_pos, substr(d.definition_html, 1, 600) AS def " +
-    "FROM lemmas l LEFT JOIN lemma_definitions d ON d.lemma_id = l.id ORDER BY l.id";
+    "SELECT l.strongs_id, l.lemma, l.alt_lemma, l.transliteration, l.gloss, l.lex_pos, substr(d.definition_html, 1, 600) AS def " +
+    // Greek only for now; Hebrew lemmas get their own prompt (OT glosses are a later step).
+    "FROM lemmas l LEFT JOIN lemma_definitions d ON d.lemma_id = l.id WHERE l.language = 'grc' ORDER BY l.id";
   const out = execFileSync("pnpm", ["exec", "wrangler", "d1", "execute", "concornext", "--local", "--json", "--command", sql], {
     encoding: "utf8",
     maxBuffer: 64 * 1024 * 1024,
@@ -83,7 +84,7 @@ async function translate(client: Anthropic, rows: Row[]): Promise<Record<string,
     .map(r =>
       JSON.stringify({
         strongsId: r.strongs_id,
-        greek: r.greek_lemma + (r.alt_lemma ? `（TAGNT: ${r.alt_lemma}）` : ""),
+        greek: r.lemma + (r.alt_lemma ? `（TAGNT: ${r.alt_lemma}）` : ""),
         translit: r.transliteration,
         pos: r.lex_pos,
         gloss: r.gloss,

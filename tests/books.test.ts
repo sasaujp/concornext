@@ -1,5 +1,17 @@
 import { describe, expect, it } from "vitest";
-import { CHAPTER_END, displayPassage, findBook, formatPassage, parsePassage } from "~/lib/books";
+import { BOOKS, CHAPTER_END, bookByCode, displayPassage, findBook, formatPassage, parsePassage } from "~/lib/books";
+
+describe("BOOKS", () => {
+  it("lists the 66 books in canonical order, OT before NT", () => {
+    expect(BOOKS).toHaveLength(66);
+    expect(BOOKS.map(b => b.ord)).toEqual(Array.from({ length: 66 }, (_, i) => i + 1));
+    expect(BOOKS.filter(b => b.testament === "OT")).toHaveLength(39);
+    expect(bookByCode("Gen")).toMatchObject({ ord: 1, testament: "OT", usfm: "GEN" });
+    expect(bookByCode("Mal")).toMatchObject({ ord: 39 });
+    expect(bookByCode("Mat")).toMatchObject({ ord: 40, testament: "NT" });
+    expect(new Set(BOOKS.map(b => b.code)).size).toBe(66);
+  });
+});
 
 describe("findBook", () => {
   it("accepts codes, English and Japanese names and prefixes", () => {
@@ -12,6 +24,23 @@ describe("findBook", () => {
     expect(findBook("1コリント")?.code).toBe("1Co");
     expect(findBook("Matt")?.code).toBe("Mat");
     expect(findBook("Ph")).toBeUndefined(); // Philippians / Philemon
+  });
+
+  it("finds Old Testament books", () => {
+    expect(findBook("Gen")?.code).toBe("Gen");
+    expect(findBook("創世記")?.code).toBe("Gen");
+    expect(findBook("詩篇")?.code).toBe("Psa");
+    expect(findBook("Psalms")?.code).toBe("Psa");
+    expect(findBook("Ⅰサムエル")?.code).toBe("1Sa");
+    expect(findBook("1 Samuel")?.code).toBe("1Sa");
+    expect(findBook("I Samuel")?.code).toBe("1Sa");
+    expect(findBook("Ⅱ列王")?.code).toBe("2Ki");
+  });
+
+  it("does not read the I of Isaiah as a Roman numeral", () => {
+    expect(findBook("Isa")?.code).toBe("Isa");
+    expect(findBook("Isaiah")?.code).toBe("Isa");
+    expect(findBook("1Sa")?.code).toBe("1Sa");
   });
 });
 
@@ -43,5 +72,6 @@ describe("parsePassage", () => {
   it("displays in Japanese", () => {
     expect(displayPassage(parsePassage("Jhn.1.1-18")!)).toBe("ヨハネ 1:1–18");
     expect(displayPassage(parsePassage("Mat.5-7")!)).toBe("マタイ 5–7章");
+    expect(displayPassage(parsePassage("詩篇 23")!)).toBe("詩篇 23章");
   });
 });

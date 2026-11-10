@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { isImported, joinSegments, parseKetiv, parseTahotLine, parseTbeshLine, rootSegments } from "../scripts/tahot";
+import { isImported, joinSegments, parseKetiv, parseTahotLine, parseTbeshLine, rootSegments, segmentsJson } from "../scripts/tahot";
+import { lemmaIdFor, strongsBase } from "../scripts/tagnt";
 
 // TAHOT rows have 17 tab-separated columns:
 // ref, Hebrew, transliteration, translation, dStrongs, grammar, meaning variants, spelling variants,
@@ -155,5 +156,26 @@ describe("parseTbeshLine", () => {
   it("ignores header lines", () => {
     expect(parseTbeshLine("TBESH - Translators Brief lexicon of Extended Strongs for Hebrew")).toBeNull();
     expect(parseTbeshLine("\t==========")).toBeNull();
+  });
+});
+
+describe("lemma ids and segments", () => {
+  it("keeps Greek ids and gives Hebrew ids their own range", () => {
+    expect(lemmaIdFor("G3056")).toBe(91680);
+    expect(lemmaIdFor("G2491G")).toBe(74737);
+    expect(lemmaIdFor("H1254A")).toBe(1_075_241);
+    expect(lemmaIdFor("H2148v")).toBe(1_128_928);
+    expect(lemmaIdFor("H2148V")).not.toBe(lemmaIdFor("H2148v"));
+    expect(strongsBase("H2148v")).toBe("H2148");
+  });
+
+  it("stores segments compactly, only for words with more than one segment", () => {
+    const t = parseTahotLine(row(["Gen.1.1#07=L", "הָ/אָֽרֶץ\\׃", "ha./'A.retz", "the/ earth", "H9009/{H0776G}\\H9016", "HTd/Ncfsa"]))!;
+    expect(JSON.parse(segmentsJson(t.segments)!)).toEqual([
+      { k: "affix", h: "הָ", t: "ha.", s: "H9009", m: "HTd" },
+      { k: "root", h: "אָֽרֶץ", t: "'A.retz", s: "H0776G", m: "HNcfsa", p: "׃" },
+    ]);
+    const single = parseTahotLine(row(["Gen.1.1#02=L", "בָּרָ֣א", "ba.Ra'", "he created", "{H1254A}", "HVqp3ms"]))!;
+    expect(segmentsJson(single.segments)).toBeNull();
   });
 });
