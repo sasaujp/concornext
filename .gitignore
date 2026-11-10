@@ -32,6 +32,7 @@ Thumbs.db
 
 # STEPBible source files and generated SQL (re-create with pnpm data:download / data:build)
 data/raw/*.txt
+data/raw/*.xml
 data/sql/
 
 # Browser automation artefacts

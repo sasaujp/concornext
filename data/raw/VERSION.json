@@ -2,5 +2,10 @@
   "repo": "STEPBible/STEPBible-Data",
   "sha": "be4191f0082aeedddb0eff0c02c966292b2bd641",
   "commitDate": "2026-10-24T10:54:54Z",
-  "downloadedAt": "2026-10-27T00:30:00.000Z"
+  "hebrewLexicon": {
+    "repo": "openscriptures/HebrewLexicon",
+    "sha": "21c9add13bc727d3a951361778e97e3ff7afd1ce",
+    "commitDate": "2019-09-02T22:24:11Z"
+  },
+  "downloadedAt": "2026-11-10T13:43:14.314Z"
 }
