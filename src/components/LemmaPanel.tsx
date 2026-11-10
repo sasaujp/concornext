@@ -96,8 +96,11 @@ export function LemmaHeader(props: { lemma: LemmaDetail }) {
       <NoteEditor strongsId={props.lemma.strongsId} notes={props.lemma.notes} />
       <Show when={props.lemma.definitionHtml}>
         <details class="rounded-md border bg-muted/40 p-3 text-sm">
-          <summary class="cursor-pointer select-none font-medium">辞書（TBESG / Abbott-Smith）</summary>
-          {/* TBESG lexicon HTML from STEPBible (trusted static data); <ref> tags render as plain text. */}
+          <summary class="cursor-pointer select-none font-medium">
+            {props.lemma.language === "grc" ? "辞書（TBESG / Abbott-Smith）" : "辞書（BDB 概要 / Strong's）"}
+          </summary>
+          {/* Trusted static data built by scripts/build-import.ts: TBESG HTML from STEPBible (<ref> tags render as
+              plain text), or for Hebrew the Open Scriptures BDB outline and Strong's entry (scripts/oshb.ts). */}
           <div class="lexicon mt-2 leading-relaxed [&_b]:font-semibold" innerHTML={props.lemma.definitionHtml!} />
         </details>
       </Show>

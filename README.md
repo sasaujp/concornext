@@ -32,11 +32,23 @@ SSR、サーバー関数、D1 アクセス、Anthropic API 呼び出しは、す
 
 | データ | 用途 | 取得元 |
 |---|---|---|
-| STEPBible **TAGNT**（Mat–Jhn, Act–Rev） | 語形・lemma・Strong's・形態素・出現位置・校訂版 | github.com/STEPBible/STEPBible-Data |
-| STEPBible **TBESG** | 見出し語・転写・英語語義・辞書本文 | 同上 |
+| STEPBible **TAGNT**（Mat–Jhn, Act–Rev） | 新約: 語形・lemma・Strong's・形態素・出現位置・校訂版 | github.com/STEPBible/STEPBible-Data |
+| STEPBible **TBESG** | 新約: 見出し語・転写・英語語義・辞書本文 | 同上 |
+| STEPBible **TAHOT**（Gen–Deu, Jos–Est, Job–Sng, Isa–Mal） | 旧約: 語形（接頭辞・接尾辞の分解）・Strong's・形態素・出現位置・ケレ／ケティブ | 同上 |
+| STEPBible **TBESH** | 旧約: 見出し語・転写・英語語義（**辞書本文の Meaning 列は使わない**。下記） | 同上 |
+| STEPBible **TEHMC** | 旧約: 形態素コードの説明 | 同上 |
+| **Open Scriptures Hebrew Lexicon** | 旧約: 辞書本文（BDB の概要と Strong's ヘブライ語辞典） | github.com/openscriptures/HebrewLexicon |
 | **BSB**（Berean Standard Bible） | 英訳（章単位で取得して D1 にキャッシュ） | bible.helloao.org Free Use Bible API |
 
 いま取り込んであるのは STEPBible-Data `be4191f0082a`（2026-10-24）です。内訳は NA28 の語 137,919、出現行 138,173、見出し語 5,554 です。バージョンは画面右上の「データについて」と、D1 の `data_versions` テーブルで確認できます。
+
+### 旧約（ヘブライ語・アラム語）の扱い
+
+- 本文は TAHOT の「翻訳者の本文」です。レニングラード写本を基に、**ケレ（欄外の読み）を本文**とし、ケティブ（書かれた綴り）は語の詳細に示します。レニングラード写本で欠けている箇所の復元（R: ヨシュア 21:36-37 など）は残し、**七十人訳から補われた語（X）は取り込みません**。読まないケティブ（空のケレ行）も除きます。
+- 章節は**ヘブライ語聖書（MT）の番号**です（詩篇の表題は 1 節、マラキ書は 3 章まで）。英語（BSB）の章節は語ごとに `eng_chapter` / `eng_verse` に持ちます（1 つの MT 節が英語の 2 節にまたがる箇所があるため）。
+- 接頭辞（ו・ה・ב など）は見出し語にせず、語の分解（`segments`）として保存します。コンコルダンスの対象は本体の語だけです。前置詞＋代名詞の語（בּוֹ など）では、TAHOT が本体として示す代名詞接尾辞が見出し語になります。
+- 書名・固有名詞の日本語表記は新約と同じく口語訳・新改訳系です。
+- **TBESH の Meaning 列は使いません。** Online Bible の Abridged BDB（© Larry Pierce）で、ファイル自体に「利用には Online Bible の許諾が必要」と明記されているためです。辞書本文は Open Scriptures Hebrew Lexicon の BDB 概要と Strong's で代えています（本文はパブリックドメイン、XML は CC BY 4.0）。
 
 ### 日本語の語義
 
@@ -61,7 +73,7 @@ SSR、サーバー関数、D1 アクセス、Anthropic API 呼び出しは、す
 pnpm install
 
 # 1) STEPBible データを取得する（data/raw/ に保存し、コミット SHA を VERSION.json に記録）
-pnpm data:download            # 特定のコミットを使う場合: pnpm data:download <sha>
+pnpm data:download            # 特定のコミットを使う場合: pnpm data:download <sha> [<HebrewLexicon の sha>]
 
 # 2) D1 用の SQL を生成する（data/sql/。最初のファイルが既存データを削除するので、何度でも再実行できる）
 pnpm data:build
@@ -179,7 +191,7 @@ tests/                       Vitest
 
 ソースコードは [MIT License](./LICENSE) です。
 
-STEPBible の元データ（TAGNT・TBESG）と英訳は本リポジトリに含みません（`pnpm data:download` などで各配布元から取得します）。リポジトリに含むのは、日本語の語義（`data/glosses-ja.json`）だけです。
+STEPBible の元データ（TAGNT・TBESG・TAHOT・TBESH・TEHMC）、Open Scriptures Hebrew Lexicon、英訳は本リポジトリに含みません（`pnpm data:download` などで各配布元から取得します）。リポジトリに含むのは、日本語の語義（`data/glosses-ja.json`）だけです。
 
 - STEPBible TAGNT / TBESG: © STEPBible.org / Tyndale House Cambridge, [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)。配布元: https://github.com/STEPBible/STEPBible-Data
 - `data/glosses-ja.json`: TBESG の英語の語義を Claude Haiku で日本語に訳したもの（TBESG の派生物として CC BY 4.0）

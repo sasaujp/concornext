@@ -151,3 +151,25 @@
   font-feature-settings: "kern", "liga";
   line-height: 1.9;
 }
+
+/* Pointed Hebrew (vowels and cantillation): a serif face with room above and below the letters. */
+.hebrew,
+.lexicon .he {
+  font-family: "SBL Hebrew", "Ezra SIL", "Noto Serif Hebrew", "Times New Roman", serif;
+  font-feature-settings: "kern", "mark", "mkmk";
+  line-height: 2;
+}
+
+/* Hebrew lexicon entries (BDB outline + Strong's): small source headings and indented senses. */
+.lexicon .lex-src {
+  @apply mt-3 text-xs font-medium text-muted-foreground first:mt-0;
+}
+.lexicon .lex-src + div {
+  @apply mt-1;
+}
+.lexicon .sense {
+  @apply ml-4;
+}
+.lexicon .he {
+  font-size: 1.15em;
+}

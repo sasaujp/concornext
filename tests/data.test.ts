@@ -108,6 +108,18 @@ describe.skipIf(!available)("Hebrew OT in local D1", () => {
     expect(x.n).toBe(0);
   });
 
+  it("defines Hebrew lemmas from BDB / Strong's, never from TBESH's Meaning column", () => {
+    const [d] = d1<{ definition_html: string }>(
+      `SELECT d.definition_html FROM lemma_definitions d JOIN lemmas l ON l.id = d.lemma_id WHERE l.strongs_id = 'H1254A'`,
+    );
+    expect(d.definition_html).toContain("BDB");
+    expect(d.definition_html).toContain("Strong's H1254");
+    // TBESH's Meaning (Abridged BDB © Online Bible) for H1254A begins "1) to create, shape, form".
+    expect(d.definition_html).not.toContain("1) to create, shape, form");
+    const [v] = d1<{ n: number }>(`SELECT count(*) AS n FROM data_versions WHERE source = 'HebrewLexicon'`);
+    expect(v.n).toBe(1);
+  });
+
   it("marks Aramaic lemmas", () => {
     const [r] = d1<{ language: string }>(`SELECT language FROM lemmas WHERE strongs_id = 'H1768'`);
     expect(r.language).toBe("arc");

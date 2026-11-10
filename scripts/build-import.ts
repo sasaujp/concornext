@@ -18,6 +18,7 @@ import { createInterface } from "node:readline";
 import { bookByCode } from "../src/lib/books";
 import { normalizeGreek, normalizeLatin, stripPunctuation } from "../src/lib/greek";
 import { normalizeHebrew } from "../src/lib/hebrew";
+import { hebrewDefinitionHtml, parseAugIndex, parseBdb, parseLexicalIndex, parseStrongsHebrew, type HebrewLexicon } from "./oshb";
 import { TAHOT_FILES, isImported, parseTahotLine, parseTbeshLine, rootSegments, segmentsJson, type TahotSegment, type TahotToken, type TbeshEntry } from "./tahot";
 import { isNA28, lemmaIdFor, parseTagntLine, parseTbesgLine, strongsBase, type TagntToken, type TbesgEntry } from "./tagnt";
 
@@ -115,6 +116,15 @@ async function main() {
   });
   console.log(`TBESH entries: ${tbesh.size}`);
 
+  // --- Open Scriptures Hebrew Lexicon (BDB outline + Strong's): the Hebrew definitions
+  const hebLex: HebrewLexicon = {
+    aug: parseAugIndex(await readFile(join(RAW, "AugIndex.xml"), "utf8")),
+    index: parseLexicalIndex(await readFile(join(RAW, "LexicalIndex.xml"), "utf8")),
+    bdb: parseBdb(await readFile(join(RAW, "BrownDriverBriggs.xml"), "utf8")),
+    strongs: parseStrongsHebrew(await readFile(join(RAW, "HebrewStrong.xml"), "utf8")),
+  };
+  console.log(`HebrewLexicon: BDB entries ${hebLex.bdb.size}, Strong's entries ${hebLex.strongs.size}`);
+
   // --- TAHOT tokens, grouped by MT verse (words are renumbered 1…n within each verse)
   const otVerses = new Map<string, { bookOrd: number; tokens: TahotToken[] }>();
   let otRows = 0;
@@ -191,11 +201,12 @@ async function main() {
     "DELETE FROM occurrences;",
     "DELETE FROM lemma_definitions;",
     "DELETE FROM lemmas;",
-    "DELETE FROM data_versions WHERE source = 'STEPBible-Data';",
+    "DELETE FROM data_versions WHERE source IN ('STEPBible-Data', 'HebrewLexicon');",
   ]);
 
   const missingLex: string[] = [];
   const missingHebLex: string[] = [];
+  const noHebDef: string[] = [];
   const lemmaRows: (string | number | null)[][] = [];
   const defRows: (string | number | null)[][] = [];
   // Most frequent root form per Hebrew lemma, as a fallback headword when TBESH lacks the entry.
@@ -227,6 +238,9 @@ async function main() {
         s.count,
         s.verses.size,
       ]);
+      const def = hebrewDefinitionHtml(hebLex, lex?.eStrong ?? strongsBase(s.strongs), strongsBase(s.strongs));
+      if (def) defRows.push([id, def]);
+      else noHebDef.push(s.strongs);
       continue;
     }
     // Exact extended Strong's first; otherwise the first TBESG entry filed under the plain number
@@ -259,6 +273,7 @@ async function main() {
   }
   if (missingLex.length) console.warn(`Lemmas without exact TBESG entry (${missingLex.length}): ${missingLex.join(" ")}`);
   if (missingHebLex.length) console.warn(`Lemmas without exact TBESH entry (${missingHebLex.length}): ${missingHebLex.join(" ")}`);
+  if (noHebDef.length) console.warn(`Hebrew lemmas without BDB or Strong's definition (${noHebDef.length}): ${noHebDef.join(" ")}`);
   console.log(`Lemmas: ${lemmaRows.length} (Hebrew/Aramaic: ${lemmaRows.filter(r => r[3] !== "grc").length}, Japanese gloss: ${lemmaRows.filter(r => r[11]).length})`);
 
   await emit(
@@ -357,6 +372,9 @@ async function main() {
   });
   await emit("version", [
     `INSERT INTO data_versions (source, version, detail, imported_at) VALUES (${q("STEPBible-Data")}, ${q(version.sha)}, ${q(detail)}, ${q(new Date().toISOString())});`,
+    `INSERT INTO data_versions (source, version, detail, imported_at) VALUES (${q("HebrewLexicon")}, ${q(version.hebrewLexicon?.sha ?? "unknown")}, ${q(
+      JSON.stringify({ repo: version.hebrewLexicon?.repo ?? null, commitDate: version.hebrewLexicon?.commitDate ?? null }),
+    )}, ${q(new Date().toISOString())});`,
   ]);
 
   await writeFile(join(OUT, "manifest.json"), JSON.stringify({ version: version.sha, files }, null, 2) + "\n");

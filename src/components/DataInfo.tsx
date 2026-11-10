@@ -29,6 +29,26 @@ export function DataInfo() {
             <strong>語義・辞書</strong>: STEPBible TBESG（Abbott-Smith に基づく簡易辞書, CC BY 4.0）。
           </p>
           <p>
+            <strong>ヘブライ語本文・形態素</strong>: STEPBible TAHOT（Translators Amalgamated Hebrew OT, CC BY 4.0）。
+            レニングラード写本に基づき、ケレ（欄外の読み）を本文とし、ケティブは語の詳細に示します。
+            七十人訳から補われた語は取り込んでいません。章節はヘブライ語聖書（MT）の番号です。
+          </p>
+          <p>
+            <strong>ヘブライ語の語義</strong>: STEPBible TBESH の見出し語・転写・短い語義（CC BY 4.0）。
+            TBESH の辞書本文（Meaning 列）は Online Bible の Abridged BDB で、別途許諾が必要なため使っていません。
+          </p>
+          <p>
+            <strong>ヘブライ語の辞書</strong>: Open Scriptures Hebrew Lexicon（BDB の概要と Strong's ヘブライ語辞典。
+            本文はパブリックドメイン、XML は CC BY 4.0, Open Scriptures Hebrew Bible Project）。
+          </p>
+          <p class="text-xs text-muted-foreground">
+            STEPBible のデータは Tyndale House, Cambridge と STEPBible.org によるものです（
+            <a class="underline" href="https://stepbible.github.io/STEPBible-Data/" target="_blank" rel="noopener noreferrer">
+              STEPBible-Data
+            </a>
+            ）。
+          </p>
+          <p>
             <strong>英訳</strong>: Berean Standard Bible（bible.helloao.org Free Use Bible API）。
           </p>
           <Suspense fallback={<p class="text-muted-foreground">読み込み中…</p>}>
