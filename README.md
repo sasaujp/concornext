@@ -193,6 +193,7 @@ tests/                       Vitest
 
 STEPBible の元データ（TAGNT・TBESG・TAHOT・TBESH・TEHMC）、Open Scriptures Hebrew Lexicon、英訳は本リポジトリに含みません（`pnpm data:download` などで各配布元から取得します）。リポジトリに含むのは、日本語の語義（`data/glosses-ja.json`）だけです。
 
-- STEPBible TAGNT / TBESG: © STEPBible.org / Tyndale House Cambridge, [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)。配布元: https://github.com/STEPBible/STEPBible-Data
+- STEPBible TAGNT / TBESG / TAHOT / TBESH / TEHMC: © STEPBible.org / Tyndale House Cambridge, [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)。配布元: https://github.com/STEPBible/STEPBible-Data（TBESH の Meaning 列は Online Bible の著作物のため使っていません）
+- Open Scriptures Hebrew Lexicon: BDB と Strong's の本文はパブリックドメイン、XML は Open Scriptures Hebrew Bible Project による [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)。配布元: https://github.com/openscriptures/HebrewLexicon
 - `data/glosses-ja.json`: TBESG の英語の語義を Claude Haiku で日本語に訳したもの（TBESG の派生物として CC BY 4.0）
 - Berean Standard Bible: パブリックドメイン（bible.helloao.org の Free Use Bible API 経由）
