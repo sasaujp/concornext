@@ -3,7 +3,16 @@ import { Badge } from "~/components/ui/badge";
 import { decodeMorphology, summarizeMorphology } from "~/lib/morph";
 
 /** Grammar of one morphology code as compact badges. Aorists get a distinct badge. */
-export function MorphBadges(props: { code: string; class?: string }) {
+export function MorphBadges(props: { code: string; class?: string; strongsId?: string }) {
+  // Hebrew (TEHMC) codes are decoded in a later step; until then they are shown as they are.
+  return (
+    <Show when={!props.strongsId?.startsWith("H")} fallback={<code class={`text-xs text-muted-foreground ${props.class ?? ""}`}>{props.code}</code>}>
+      <GreekMorphBadges code={props.code} class={props.class} />
+    </Show>
+  );
+}
+
+function GreekMorphBadges(props: { code: string; class?: string }) {
   const m = () => decodeMorphology(props.code);
   const items = () => [m().voice, m().mood, m().person, m().case, m().gender, m().number, ...m().extra].filter((x): x is string => !!x);
   return (

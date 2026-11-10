@@ -6,6 +6,7 @@
 import { env } from "cloudflare:workers";
 import { getRequestEvent } from "solid-js/web";
 import { dataVersions } from "~/db/schema";
+import type { Testament } from "~/lib/books";
 import { analysisModel, getCachedAnalysis, PROMPT_VERSION, runAnalysis, type AnalysisRequest } from "./analysis";
 import { listPasskeys, removePasskey, type SessionUser } from "./auth";
 import { getBsbVerses, type VerseRefInput } from "./bsb";
@@ -42,9 +43,17 @@ export async function fetchMe() {
   return currentUser();
 }
 
-export async function fetchLemmaList(q: string, sort: LemmaSort, letter: string | null, withNote: boolean, book: string | null, page: number) {
+export async function fetchLemmaList(
+  q: string,
+  sort: LemmaSort,
+  letter: string | null,
+  withNote: boolean,
+  book: string | null,
+  page: number,
+  testament: Testament = "NT",
+) {
   const user = requireUser();
-  return searchLemmas(getDb(), { userId: user.id, q, sort, letter, withNote, book, page, pageSize: 50 });
+  return searchLemmas(getDb(), { userId: user.id, q, sort, letter, withNote, book, testament, page, pageSize: 50 });
 }
 
 export async function fetchScopeBook() {

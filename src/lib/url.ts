@@ -1,12 +1,16 @@
 /** URL search-param state for the lexicon page, so every selection is restorable from the URL. */
+import type { Testament } from "~/lib/books";
 import { isGreekInitial } from "~/lib/greek";
+import { HEBREW_ALPHABET } from "~/lib/hebrew";
 import type { LemmaSort } from "~/server/lexicon";
 
 export type LexiconParams = {
   q?: string;
   sort?: string;
-  /** Initial letter filter (accent-free lowercase Greek letter, e.g. "λ"). */
+  /** Initial letter filter (accent-free lowercase Greek letter, e.g. "λ", or a Hebrew letter). */
   l?: string;
+  /** "ot" = Old Testament (Hebrew/Aramaic) lemmas; default New Testament. */
+  t?: string;
   /** "1" = only lemmas that have a memo. */
   memo?: string;
   page?: string;
@@ -19,6 +23,7 @@ export interface LexiconState {
   q: string;
   sort: LemmaSort;
   letter: string | null;
+  testament: Testament;
   memo: boolean;
   page: number;
   s: string | null;
@@ -40,7 +45,8 @@ export function readParams(p: Partial<Record<keyof LexiconParams, string | strin
   return {
     q: str(p.q),
     sort: sort === "freq" || sort === "alpha" || (sort === "memo" && memo) ? sort : defaultSort(memo),
-    letter: isGreekInitial(str(p.l)) ? str(p.l) : null,
+    letter: isGreekInitial(str(p.l)) || HEBREW_ALPHABET.includes(str(p.l)) ? str(p.l) : null,
+    testament: str(p.t) === "ot" ? "OT" : "NT",
     memo,
     page: num(p.page),
     s: str(p.s) || null,
@@ -55,6 +61,7 @@ export function lexiconHref(state: LexiconState, patch: Partial<LexiconState> = 
   if (s.q) u.set("q", s.q);
   if (s.sort !== defaultSort(s.memo)) u.set("sort", s.sort);
   if (s.letter) u.set("l", s.letter);
+  if (s.testament === "OT") u.set("t", "ot");
   if (s.memo) u.set("memo", "1");
   if (s.page > 1) u.set("page", String(s.page));
   if (s.s) u.set("s", s.s);
@@ -89,4 +96,9 @@ export function passageHref(r: string | null, opts: { at?: string | null; en?: b
   if (opts.en === false) u.set("en", "0");
   const qs = u.toString();
   return `/passage${qs ? `?${qs}` : ""}`;
+}
+
+/** The lexicon page for one lemma, with the list switched to its testament (H… → OT). */
+export function lemmaHref(strongsId: string | null | undefined): string {
+  return lexiconHref(readParams({ s: strongsId ?? undefined, t: strongsId?.startsWith("H") ? "ot" : undefined }));
 }

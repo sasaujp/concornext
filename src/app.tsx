@@ -23,7 +23,7 @@ export default function App() {
                   <BookOpenText class="size-5" aria-hidden="true" />
                   <span class="hidden sm:inline">ConcorNext</span>
                 </A>
-                <span class="hidden text-sm text-muted-foreground lg:inline">新約聖書ギリシャ語 コンコルダンスと文法学習</span>
+                <span class="hidden text-sm text-muted-foreground lg:inline">聖書原語（ギリシャ語・ヘブライ語）コンコルダンスと文法学習</span>
                 <HeaderControls />
               </div>
             </header>

@@ -14,7 +14,8 @@ import { Skeleton } from "~/components/ui/skeleton";
 import { bookByCode, displayRef, parseRef } from "~/lib/books";
 import { decodeMorphology } from "~/lib/morph";
 import { analyzeAction, appInfoQuery, bsbQuery, cachedAnalysisQuery, verseQuery, type AnalysisResponse } from "~/lib/queries";
-import { lexiconHref, passageHref, readParams, safeReturnPath, verseHref } from "~/lib/url";
+import { bareWord, scriptAttrs } from "~/lib/script";
+import { lemmaHref, lexiconHref, passageHref, readParams, safeReturnPath, verseHref } from "~/lib/url";
 
 type VerseSearch = { s?: string; w?: string; from?: string };
 
@@ -52,7 +53,7 @@ export default function VersePage() {
 
   // Return to the concordance (or the passage reader) and scroll back to this verse.
   const backHref = () => {
-    const base = from() ?? lexiconHref(readParams({ s: strongs() ?? undefined }));
+    const base = from() ?? lemmaHref(strongs());
     const r = ref();
     return r ? `${base.split("#")[0]}#v-${r.book.code}-${r.chapter}-${r.verse}` : base;
   };
@@ -66,7 +67,10 @@ export default function VersePage() {
   /** Lemma whose concordance is open in the dialog. */
   const [concordanceOf, setConcordanceOf] = createSignal<string | null>(null);
 
-  const aorists = () => verse()?.tokens.filter(t => t.parts.some(p => decodeMorphology(p.morphology).isAorist)) ?? [];
+  const isOT = () => bookByCode(verse()?.book ?? "")?.testament === "OT";
+  // English (BSB) verse numbers when they differ from MT (Psalm titles, Malachi 4 = MT 3:19–24, …).
+  const engRefs = () => [...new Set((verse()?.tokens ?? []).flatMap(t => (t.engRef ? [`${t.engRef.chapter}:${t.engRef.verse}`] : [])))];
+  const aorists = () => (isOT() ? [] : (verse()?.tokens.filter(t => t.parts.some(p => decodeMorphology(p.morphology).isAorist)) ?? []));
 
   return (
     <div class="mx-auto max-w-5xl space-y-4 px-3 py-4 sm:space-y-5 sm:p-4 lg:p-6">
@@ -125,6 +129,7 @@ export default function VersePage() {
                         {displayRef(v().book, v().chapter, v().verse)}
                         <span class="ml-2 text-sm font-normal text-muted-foreground">
                           {bookByCode(v().book)?.en} {v().chapter}:{v().verse}
+                          <Show when={engRefs().length}>（英語訳では {engRefs().join(", ")}）</Show>
                         </span>
                       </CardTitle>
                       <CardDescription>語をクリック（またはタップ）すると、その語の語形情報と解析対象が切り替わります。</CardDescription>
@@ -145,7 +150,12 @@ export default function VersePage() {
                       </Suspense>
                       <FavoriteNote book={v().book} chapter={v().chapter} verse={v().verse} />
                       <p class="text-xs text-muted-foreground">
-                        本文は STEPBible TAGNT のうち NA28 に含まれる語から構成しています（語順・句読点は TAGNT による。NA28 で語順が異なる語には ↔ を付けています）。
+                        <Show
+                          when={isOT()}
+                          fallback="本文は STEPBible TAGNT のうち NA28 に含まれる語から構成しています（語順・句読点は TAGNT による。NA28 で語順が異なる語には ↔ を付けています）。"
+                        >
+                          本文は STEPBible TAHOT（レニングラード写本）から構成しています。ケレ（欄外の読み）を本文とし、Q を付けています。章節はヘブライ語聖書（MT）の番号です。
+                        </Show>
                       </p>
                     </CardContent>
                   </Card>
@@ -156,9 +166,7 @@ export default function VersePage() {
                         <Card>
                           <CardHeader class="pb-3">
                             <CardDescription>選択中の語（確定データ: STEPBible）</CardDescription>
-                            <CardTitle class="greek text-3xl font-bold" lang="grc">
-                              {plainSurface(t())}
-                            </CardTitle>
+                            <CardTitle {...scriptAttrs(t().surface, "text-3xl font-bold")}>{plainSurface(t())}</CardTitle>
                           </CardHeader>
                           <CardContent>
                             <WordDetails token={t()} onLemma={setConcordanceOf} />
@@ -166,6 +174,7 @@ export default function VersePage() {
                         </Card>
                       )}
                     </Show>
+                    <Show when={!isOT()}>
                     <Card>
                       <CardHeader class="pb-3">
                         <CardDescription>この節のアオリスト形（確定データ）</CardDescription>
@@ -195,9 +204,16 @@ export default function VersePage() {
                         </Show>
                       </CardContent>
                     </Card>
+                    </Show>
                   </div>
 
-                  <Show when={selectedPos() && targetStrongs()} keyed>
+                  <Show when={isOT() && selectedPos()}>
+                    <Alert>
+                      <AlertTitle>旧約の AI 文法解析は準備中です</AlertTitle>
+                      <AlertDescription>語形・辞書形などの確定データは上に表示しています。</AlertDescription>
+                    </Alert>
+                  </Show>
+                  <Show when={!isOT() && selectedPos() && targetStrongs()} keyed>
                     {_ => (
                       <AnalysisSection
                         book={v().book}
@@ -252,9 +268,7 @@ function AnalysisSection(props: {
           </CardTitle>
           <CardDescription>
             対象:{" "}
-            <span class="greek text-base text-foreground" lang="grc">
-              {target()?.surface.replace(/[¶,.;·:]+/g, "")}
-            </span>
+            <span {...scriptAttrs(target()?.surface, "text-base text-foreground")}>{bareWord(target()?.surface ?? "")}</span>
             {" "}— 形態素は上の確定データを正とし、AI は構文・用法の説明のみを担当します。
           </CardDescription>
         </div>

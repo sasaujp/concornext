@@ -53,7 +53,7 @@ export const saveFavoriteNoteAction = action(async (book: string, chapter: numbe
 
 export type { AnalysisRequest, AnalysisResponse } from "~/server/analysis";
 export type { Favorite } from "~/server/favorites";
-export type { ConcordancePage, LemmaDetail, LemmaListItem, LemmaSearchResult, PassageTokens, Token, VerseTokens } from "~/server/lexicon";
+export type { ConcordancePage, LemmaDetail, LemmaListItem, LemmaSearchResult, PassageTokens, Token, VerseTokens, WordSegment } from "~/server/lexicon";
 
 /** Signed-in user or null. */
 export const meQuery = query(fetchMe, "me");

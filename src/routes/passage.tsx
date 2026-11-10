@@ -9,6 +9,7 @@ import { Alert, AlertDescription } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "~/components/ui/card";
 import { Skeleton } from "~/components/ui/skeleton";
+import { scriptAttrs } from "~/lib/script";
 import { BOOKS, bookByCode, CHAPTER_END, displayPassage, formatPassage, parsePassage, type Passage } from "~/lib/books";
 import { bsbQuery, outlineQuery, passageQuery, scopeBookQuery, type Token, type VerseTokens } from "~/lib/queries";
 import { type PassageParams, passageHref, verseHref } from "~/lib/url";
@@ -16,6 +17,12 @@ import { type PassageParams, passageHref, verseHref } from "~/lib/url";
 const EXAMPLES = ["Jhn.1.1-18", "Mat.5.1-12", "Rom.8", "1Co.13", "Php.2.5-11", "Heb.1.1-4"];
 
 type Selected = { verse: VerseTokens; token: Token };
+
+
+const TESTAMENT_GROUPS = [
+  { testament: "OT", label: "旧約" },
+  { testament: "NT", label: "新約" },
+] as const;
 
 export default function PassagePage() {
   const [search] = useSearchParams<PassageParams>();
@@ -115,11 +122,17 @@ function PassagePicker(props: { passage: Passage | null; raw: string }) {
             setTo(undefined);
           }}
         >
-          <For each={BOOKS}>
-            {b => (
-              <option value={b.code} selected={b.code === curBook()}>
-                {b.ja}
-              </option>
+          <For each={TESTAMENT_GROUPS}>
+            {g => (
+              <optgroup label={g.label}>
+                <For each={BOOKS.filter(b => b.testament === g.testament)}>
+                  {b => (
+                    <option value={b.code} selected={b.code === curBook()}>
+                      {b.ja}
+                    </option>
+                  )}
+                </For>
+              </optgroup>
             )}
           </For>
         </select>
@@ -206,7 +219,7 @@ function Intro() {
       <CardHeader>
         <CardTitle>章・節の範囲から本文を読む</CardTitle>
         <CardDescription>
-          書名と章・節を入力すると、その範囲のギリシャ語本文を表示します。語をクリック（またはタップ）すると語形と辞書形が表示され、そこからコンコルダンスや文法解析に進めます。
+          書名と章・節を入力すると、その範囲の原文（新約はギリシャ語、旧約はヘブライ語）を表示します。語をクリック（またはタップ）すると語形と辞書形が表示され、そこからコンコルダンスや文法解析に進めます。
         </CardDescription>
       </CardHeader>
       <CardContent class="space-y-3 text-sm">
@@ -324,7 +337,7 @@ function PassageReader(props: { passage: Passage }) {
               <Suspense>
                 <Show when={bsb()?.error}>
                   <Alert class="mb-3 text-sm">
-                    <AlertDescription>BSB 英訳の一部を取得できませんでした（ギリシャ語は表示しています）。{bsb()!.error}</AlertDescription>
+                    <AlertDescription>BSB 英訳の一部を取得できませんでした（原文は表示しています）。{bsb()!.error}</AlertDescription>
                   </Alert>
                 </Show>
               </Suspense>
@@ -377,7 +390,9 @@ function PassageReader(props: { passage: Passage }) {
                 </ol>
               </Show>
               <p class="mt-4 text-xs text-muted-foreground">
-                本文は STEPBible TAGNT のうち NA28 に含まれる語から構成しています（語順・句読点は TAGNT による。NA28 で語順が異なる語には ↔ を付けています）。
+                {props.passage.book.testament === "OT"
+                  ? "本文は STEPBible TAHOT（レニングラード写本）から構成しています。ケレ（欄外の読み）を本文とし、Q を付けています。章節はヘブライ語聖書（MT）の番号です。"
+                  : "本文は STEPBible TAGNT のうち NA28 に含まれる語から構成しています（語順・句読点は TAGNT による。NA28 で語順が異なる語には ↔ を付けています）。"}
               </p>
             </section>
 
@@ -401,9 +416,7 @@ function PassageReader(props: { passage: Passage }) {
                           {props.passage.book.ja} {sel().verse.chapter}:{sel().verse.verse}
                           <Show when={sameLemmaCount() > 1}>（この範囲に {sameLemmaCount()} 回）</Show>
                         </CardDescription>
-                        <CardTitle class="greek text-3xl font-bold" lang="grc">
-                          {plainSurface(sel().token)}
-                        </CardTitle>
+                        <CardTitle {...scriptAttrs(sel().token.surface, "text-3xl font-bold")}>{plainSurface(sel().token)}</CardTitle>
                       </div>
                       <Button variant="ghost" size="icon" class="-mr-2 -mt-2 size-8" onClick={clear} aria-label="閉じる">
                         <X class="size-4" aria-hidden="true" />
@@ -416,7 +429,7 @@ function PassageReader(props: { passage: Passage }) {
                         href={verseHref(sel().verse, { s: sel().token.parts[0].strongsId, w: sel().token.position, from: returnTo() })}
                         size="sm"
                       >
-                        <GraduationCap class="size-4" aria-hidden="true" /> この節を解析
+                        <GraduationCap class="size-4" aria-hidden="true" /> {props.passage.book.testament === "OT" ? "この節を開く" : "この節を解析"}
                       </Button>
                     </CardContent>
                   </Card>

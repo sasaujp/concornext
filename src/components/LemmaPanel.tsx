@@ -13,7 +13,9 @@ import { Pagination, PaginationEllipsis, PaginationItem, PaginationItems, Pagina
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "~/components/ui/select";
 import { Separator } from "~/components/ui/separator";
 import { Skeleton } from "~/components/ui/skeleton";
+import { SegmentBreakdown } from "~/components/HebrewWord";
 import { displayRef } from "~/lib/books";
+import { bareWord, scriptAttrs } from "~/lib/script";
 import { bsbQuery, concordanceQuery, lemmaDetailQuery, scopeBookQuery, type ConcordancePage, type LemmaDetail } from "~/lib/queries";
 import { type LexiconParams, lexiconHref, readParams, verseHref } from "~/lib/url";
 
@@ -46,9 +48,7 @@ export function LemmaHeader(props: { lemma: LemmaDetail }) {
   return (
     <header class="space-y-3">
       <div class="flex flex-wrap items-baseline gap-x-4 gap-y-1">
-        <h1 class="greek text-4xl font-bold leading-tight sm:text-5xl" lang="grc">
-          {props.lemma.lemma}
-        </h1>
+        <h1 {...scriptAttrs(props.lemma.lemma, "text-4xl font-bold leading-tight sm:text-5xl")}>{props.lemma.lemma}</h1>
         <span class="text-lg text-muted-foreground">{props.lemma.transliteration}</span>
         <Show when={props.lemma.altLemma}>
           <span class="text-sm text-muted-foreground">
@@ -71,6 +71,11 @@ export function LemmaHeader(props: { lemma: LemmaDetail }) {
         <Badge variant="outline" class="font-mono">
           {props.lemma.strongsId}
         </Badge>
+        <Show when={props.lemma.language === "arc"}>
+          <Badge variant="secondary" class="font-normal">
+            アラム語
+          </Badge>
+        </Show>
         <Show when={props.lemma.lexPos}>
           <Badge variant="secondary" class="font-mono font-normal">
             {props.lemma.lexPos}
@@ -82,7 +87,7 @@ export function LemmaHeader(props: { lemma: LemmaDetail }) {
         </span>
         <Button
           as="a"
-          href={`https://biblehub.com/greek/${num()}.htm`}
+          href={`https://biblehub.com/${props.lemma.language === "grc" ? "greek" : "hebrew"}/${num()}.htm`}
           target="_blank"
           rel="noopener noreferrer"
           variant="link"
@@ -220,7 +225,7 @@ export function Concordance(props: { lemma: LemmaDetail; state?: ConcordanceStat
             <Suspense>
               <Show when={bsb()?.error}>
                 <Alert variant="default" class="text-sm">
-                  <AlertDescription>BSB 英訳の一部を取得できませんでした（ギリシャ語データは表示しています）。{bsb()!.error}</AlertDescription>
+                  <AlertDescription>BSB 英訳の一部を取得できませんでした（原文データは表示しています）。{bsb()!.error}</AlertDescription>
                 </Alert>
               </Show>
             </Suspense>
@@ -293,14 +298,13 @@ function ConcordanceVerse(props: {
                 const part = () => t.parts.find(p => p.lemmaId === props.lemma.id) ?? t.parts[0];
                 return (
                   <li class="flex flex-wrap items-center gap-x-3 gap-y-1.5">
-                    <span class="greek text-lg font-semibold leading-normal" lang="grc">
-                      <Show when={props.verse.hits.length > 1}>
-                        <span class="mr-1 font-sans text-sm">{hitMarker(i())}</span>
-                      </Show>
-                      {t.surface.replace(/[¶,.;·:]+/g, "")}
-                    </span>
-                    <MorphBadges code={part().morphology} />
-                    <Show when={t.parts.length > 1}>
+                    <Show when={props.verse.hits.length > 1}>
+                      <span class="font-sans text-sm">{hitMarker(i())}</span>
+                    </Show>
+                    <span {...scriptAttrs(t.surface, "text-lg font-semibold leading-normal")}>{bareWord(t.surface)}</span>
+                    <Show when={t.segments}>{segs => <SegmentBreakdown segments={segs()} highlight={part().strongsId} class="text-base" />}</Show>
+                    <MorphBadges code={part().morphology} strongsId={part().strongsId} />
+                    <Show when={t.parts.length > 1 && !t.segments}>
                       <Badge variant="outline" class="font-normal">
                         融合形（{t.parts.map(p => p.lemma).join(" + ")}）
                       </Badge>

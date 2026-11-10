@@ -6,23 +6,43 @@ import { Skeleton } from "~/components/ui/skeleton";
 import { TextField, TextFieldInput } from "~/components/ui/text-field";
 import { Toggle } from "~/components/ui/toggle";
 import { ToggleGroup, ToggleGroupItem } from "~/components/ui/toggle-group";
+import { Badge } from "~/components/ui/badge";
 import { GREEK_ALPHABET } from "~/lib/greek";
-import { bookByCode } from "~/lib/books";
+import { HEBREW_ALPHABET } from "~/lib/hebrew";
+import { bookByCode, type Testament } from "~/lib/books";
+import { scriptAttrs } from "~/lib/script";
 import { lemmaListQuery, scopeBookQuery } from "~/lib/queries";
 import { cn } from "~/lib/utils";
 import { defaultSort, type LexiconParams, lexiconHref, readParams } from "~/lib/url";
 
-const MODE_LABEL = { all: "", strongs: "Strong's 番号で検索", greek: "ギリシャ語（アクセント無視・語形一致を含む）", latin: "転写（見出し語・活用形）・英語の語義で検索" } as const;
+const MODE_LABEL = {
+  all: "",
+  strongs: "Strong's 番号で検索",
+  greek: "ギリシャ語（アクセント無視・語形一致を含む）",
+  hebrew: "ヘブライ語（母音記号・アクセント無視、接頭辞つきの語形一致を含む）",
+  latin: "転写（見出し語・活用形）・英語の語義で検索",
+} as const;
+
+const PLACEHOLDER: Record<Testament, string> = {
+  NT: "logos / egeneto / word / G3056 / メモ",
+  OT: "bara / ברא / create / H1254 / メモ",
+};
+
+const HEBREW_LETTER_NAMES = ["alef", "bet", "gimel", "dalet", "he", "vav", "zayin", "chet", "tet", "yod", "kaf", "lamed", "mem", "nun", "samekh", "ayin", "pe", "tsadi", "qof", "resh", "shin", "tav"];
 
 export function LemmaList() {
   const [search, setSearch] = useSearchParams<LexiconParams>();
   const params = () => readParams(search);
   const [draft, setDraft] = createSignal(params().q);
+  // The header's book decides the testament when one is chosen; otherwise the 新約／旧約 switch (URL "t").
+  const scope = createAsync(() => scopeBookQuery());
+  const scopeBook = () => (scope() ? bookByCode(scope()!) : undefined);
+  const testament = (): Testament => scopeBook()?.testament ?? params().testament;
   // The header's book scope (D1) narrows the list; counts and frequency order are then within that book.
   // (All reactive reads happen before the await, see the note in LemmaPanel's Concordance.)
   const list = createAsync(async () => {
-    const { q, sort, letter, memo, page } = params();
-    return lemmaListQuery(q, sort, letter, memo, await scopeBookQuery(), page);
+    const { q, sort, letter, memo, page, testament } = params();
+    return lemmaListQuery(q, sort, letter, memo, await scopeBookQuery(), page, testament);
   });
 
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -38,12 +58,33 @@ export function LemmaList() {
   return (
     <section class="flex h-full min-h-0 flex-col" aria-label="見出し語一覧">
       <div class="space-y-3 border-b p-3">
+        <div class="flex items-center gap-2">
+          <ToggleGroup
+            size="sm"
+            variant="outline"
+            value={testament()}
+            disabled={!!scopeBook()}
+            // Switching testaments clears the letter filter (Greek vs Hebrew letters) and paging.
+            onChange={v => v && v !== params().testament && setSearch({ t: v === "OT" ? "ot" : undefined, l: undefined, page: undefined })}
+            aria-label="新約・旧約"
+          >
+            <ToggleGroupItem value="NT" class="h-8 px-3 text-xs data-[pressed]:bg-primary data-[pressed]:text-primary-foreground">
+              新約（ギリシャ語）
+            </ToggleGroupItem>
+            <ToggleGroupItem value="OT" class="h-8 px-3 text-xs data-[pressed]:bg-primary data-[pressed]:text-primary-foreground">
+              旧約（ヘブライ語）
+            </ToggleGroupItem>
+          </ToggleGroup>
+          <Show when={scopeBook()}>
+            <span class="text-xs text-muted-foreground">ヘッダーで{scopeBook()!.ja}を選択中</span>
+          </Show>
+        </div>
         <TextField class="relative" value={draft()} onChange={onInput}>
           <Search class="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
           <TextFieldInput
             type="search"
             class="pl-9 pr-9"
-            placeholder="logos / egeneto / word / G3056 / メモ"
+            placeholder={PLACEHOLDER[testament()]}
             aria-label="見出し語を検索"
             autocomplete="off"
             spellcheck={false}
@@ -96,26 +137,55 @@ export function LemmaList() {
             <span aria-live="polite">{list()?.total.toLocaleString()} 語</span>
           </Suspense>
         </div>
-        <ToggleGroup
-          size="sm"
-          value={params().letter}
-          onChange={v => setSearch({ l: v ?? undefined, page: undefined })}
-          class="grid grid-cols-12 gap-0.5"
-          aria-label="頭文字で絞り込み（もう一度押すと解除）"
+        <Show
+          when={testament() === "OT"}
+          fallback={
+            <ToggleGroup
+              size="sm"
+              value={params().letter}
+              onChange={v => setSearch({ l: v ?? undefined, page: undefined })}
+              class="grid grid-cols-12 gap-0.5"
+              aria-label="頭文字で絞り込み（もう一度押すと解除）"
+            >
+              <For each={GREEK_ALPHABET}>
+                {l => (
+                  <ToggleGroupItem
+                    value={l.key}
+                    class="greek h-8 min-w-0 px-0 text-base leading-none data-[pressed]:bg-primary data-[pressed]:text-primary-foreground"
+                    aria-label={`${l.upper} ${l.name}`}
+                    title={l.name}
+                  >
+                    {l.upper}
+                  </ToggleGroupItem>
+                )}
+              </For>
+            </ToggleGroup>
+          }
         >
-          <For each={GREEK_ALPHABET}>
-            {l => (
-              <ToggleGroupItem
-                value={l.key}
-                class="greek h-8 min-w-0 px-0 text-base leading-none data-[pressed]:bg-primary data-[pressed]:text-primary-foreground"
-                aria-label={`${l.upper} ${l.name}`}
-                title={l.name}
-              >
-                {l.upper}
-              </ToggleGroupItem>
-            )}
-          </For>
-        </ToggleGroup>
+          {/* Hebrew letters run right to left, like the alphabet itself (א at the right). */}
+          <ToggleGroup
+            size="sm"
+            value={params().letter}
+            onChange={v => setSearch({ l: v ?? undefined, page: undefined })}
+            class="grid grid-cols-11 gap-0.5"
+            dir="rtl"
+            aria-label="頭文字で絞り込み（もう一度押すと解除）"
+          >
+            <For each={HEBREW_ALPHABET}>
+              {(l, i) => (
+                <ToggleGroupItem
+                  value={l}
+                  class="hebrew h-8 min-w-0 px-0 text-lg leading-none data-[pressed]:bg-primary data-[pressed]:text-primary-foreground"
+                  aria-label={`${l} ${HEBREW_LETTER_NAMES[i()]}`}
+                  title={HEBREW_LETTER_NAMES[i()]}
+                  lang="he"
+                >
+                  {l}
+                </ToggleGroupItem>
+              )}
+            </For>
+          </ToggleGroup>
+        </Show>
         <Suspense>
           <Show when={list()?.book}>
             {b => <p class="text-xs text-muted-foreground">{bookByCode(b())?.ja}に出てくる語（出現回数・頻度順は{bookByCode(b())?.ja}内）</p>}
@@ -134,7 +204,9 @@ export function LemmaList() {
               <div class="p-8 text-center text-sm text-muted-foreground">
                 {params().memo ? "メモのある見出し語はまだありません（条件に合うものがありません）。" : "該当する見出し語がありません。"}
                 <br />
-                転写（logos・活用形 egeneto も可）、英語の語義（word）、Strong's 番号（G3056）で検索できます。頭文字の絞り込みも確認してください。
+                {testament() === "OT"
+                  ? "転写（bara）、ヘブライ文字（ברא・母音記号は不要）、英語の語義（create）、Strong's 番号（H1254）で検索できます。頭文字の絞り込みも確認してください。"
+                  : "転写（logos・活用形 egeneto も可）、英語の語義（word）、Strong's 番号（G3056）で検索できます。頭文字の絞り込みも確認してください。"}
               </div>
             }
           >
@@ -152,9 +224,7 @@ export function LemmaList() {
                         )}
                         aria-current={selected() ? "true" : undefined}
                       >
-                        <span class="greek min-w-0 shrink-0 text-xl font-semibold leading-normal" lang="grc">
-                          {item.lemma}
-                        </span>
+                        <span {...scriptAttrs(item.lemma, "min-w-0 shrink-0 text-xl font-semibold leading-normal")}>{item.lemma}</span>
                         <span class="min-w-0 flex-1 text-sm">
                           <span class="block truncate">
                             <span class="text-muted-foreground">{item.transliteration}</span>
@@ -162,6 +232,11 @@ export function LemmaList() {
                               <span class="greek ml-1 text-muted-foreground" lang="grc">
                                 ({item.altLemma})
                               </span>
+                            </Show>
+                            <Show when={item.language === "arc"}>
+                              <Badge variant="secondary" class="ml-1.5 px-1.5 py-0 text-[10px] font-normal">
+                                アラム語
+                              </Badge>
                             </Show>
                             <Show when={item.glossJa ?? item.gloss}>
                               <span class="ml-2" title={item.gloss ?? undefined}>

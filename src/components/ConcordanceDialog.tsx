@@ -6,7 +6,7 @@ import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { Dialog, DialogContent, DialogTitle } from "~/components/ui/dialog";
 import { lemmaDetailQuery } from "~/lib/queries";
-import { lexiconHref, readParams } from "~/lib/url";
+import { lemmaHref } from "~/lib/url";
 
 /**
  * A lemma's concordance in a dialog, so it can be looked up without leaving the current page.
@@ -53,7 +53,7 @@ function Body(props: { strongsId: string }) {
     <div ref={scroller} class="max-h-[92dvh] space-y-5 overflow-y-auto p-4 sm:p-6">
       <div class="flex flex-wrap items-center gap-x-3 gap-y-1 pr-8">
         <DialogTitle class="text-sm font-medium text-muted-foreground">コンコルダンス</DialogTitle>
-        <Button as={A} href={lexiconHref(readParams({ s: props.strongsId }))} variant="link" size="sm" class="h-auto px-0">
+        <Button as={A} href={lemmaHref(props.strongsId)} variant="link" size="sm" class="h-auto px-0">
           <Library class="size-4" aria-hidden="true" /> 辞書ページで開く
         </Button>
       </div>

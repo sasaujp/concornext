@@ -41,3 +41,12 @@ describe("normalizeLatin", () => {
     expect(normalizeLatin("Christos")).toBe(normalizeLatin("cristos"));
   });
 });
+
+describe("parseStrongs (Hebrew)", () => {
+  it("reads H numbers and uses the testament's prefix for bare numbers", () => {
+    expect(parseStrongs("H1254a")).toEqual({ base: "H1254", extended: "H1254A" });
+    expect(parseStrongs("h430")).toEqual({ base: "H0430", extended: null });
+    expect(parseStrongs("1254", "H")).toEqual({ base: "H1254", extended: null });
+    expect(parseStrongs("3056")).toEqual({ base: "G3056", extended: null });
+  });
+});

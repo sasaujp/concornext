@@ -10,6 +10,10 @@ const tok = (position: number, surface: string, lemma: string, strongsId: string
   english: null,
   editionInfo: "NA28",
   wordType: "NKO",
+  segments: null,
+  ketiv: null,
+  ketivGloss: null,
+  engRef: null,
   parts: [{ lemmaId: 1, strongsId, lemma, gloss: null, glossJa: null, morphology }],
 });
 const tokens = [tok(1, "Ἐγένετο", "γίνομαι", "G1096", "V-2ADI-3S"), tok(2, "ἄνθρωπος,¶", "ἄνθρωπος", "G0444", "N-NSM")];

@@ -9,6 +9,10 @@ const tok = (position: number, surface: string, morphology: string) => ({
   english: null,
   editionInfo: "NA28",
   wordType: "NKO",
+  segments: null,
+  ketiv: null,
+  ketivGloss: null,
+  engRef: null,
   parts: [{ lemmaId: 1, strongsId: "G0001", lemma: surface, gloss: null, glossJa: null, morphology }],
 });
 

@@ -7,6 +7,8 @@ import type { SQLiteSelect } from "drizzle-orm/sqlite-core";
 import { lemmaDefinitions, lemmaNotes, lemmas, occurrences, userSettings } from "~/db/schema";
 import { BOOKS, bookByCode, bookByOrd } from "~/lib/books";
 import { containsGreek, normalizeGreek, normalizeLatin, parseStrongs } from "~/lib/greek";
+import { containsHebrew, normalizeHebrew } from "~/lib/hebrew";
+import type { Testament } from "~/lib/books";
 import type { Db } from "./db";
 
 export type LemmaSort = "freq" | "alpha" | "memo";
@@ -39,7 +41,9 @@ export interface LemmaSearchResult {
   page: number;
   pageSize: number;
   /** How the query was interpreted (shown to the user). */
-  mode: "all" | "strongs" | "greek" | "latin";
+  mode: "all" | "strongs" | "greek" | "hebrew" | "latin";
+  /** Which testament's lemmas are listed (the scope book's, when one is set). */
+  testament: Testament;
   /** Book scope applied (counts are within this book), or null. */
   book: string | null;
 }
@@ -106,19 +110,22 @@ export async function searchLemmas(
     letter?: string | null;
     withNote?: boolean;
     book?: string | null;
+    /** NT (Greek) or OT (Hebrew/Aramaic) lemmas; a scope book overrides it. Default NT. */
+    testament?: Testament | null;
     page?: number;
     pageSize?: number;
   },
 ): Promise<LemmaSearchResult> {
   const q = (opts.q ?? "").trim();
   const book = opts.book ? bookByCode(opts.book) : undefined;
+  const testament: Testament = book?.testament ?? opts.testament ?? "NT";
   const notesSq = userNotes(db, opts.userId, book?.code ?? null);
   const pageSize = Math.min(Math.max(opts.pageSize ?? 50, 1), 100);
   const page = Math.max(opts.page ?? 1, 1);
   let where: SQL | undefined;
   let mode: LemmaSearchResult["mode"] = "all";
 
-  const strongs = q ? parseStrongs(q) : null;
+  const strongs = q ? parseStrongs(q, testament === "OT" ? "H" : "G") : null;
   if (strongs) {
     mode = "strongs";
     where = strongs.extended ? eq(lemmas.strongsId, strongs.extended) : eq(lemmas.strongsBase, strongs.base);
@@ -129,6 +136,18 @@ export async function searchLemmas(
     where = or(
       like(lemmas.lemmaPlain, `${norm}%`),
       like(lemmas.altLemmaPlain, `${norm}%`),
+      inArray(
+        lemmas.id,
+        db.selectDistinct({ id: occurrences.lemmaId }).from(occurrences).where(eq(occurrences.surfacePlain, norm)),
+      ),
+    );
+  } else if (q && containsHebrew(q)) {
+    mode = "hebrew";
+    const norm = normalizeHebrew(q);
+    // Consonants only (points and accents ignored). A whole written word with its prefixes
+    // (e.g. וַיֹּאמֶר) finds its lemma through the attested surface forms.
+    where = or(
+      like(lemmas.lemmaPlain, `${norm}%`),
       inArray(
         lemmas.id,
         db.selectDistinct({ id: occurrences.lemmaId }).from(occurrences).where(eq(occurrences.surfacePlain, norm)),
@@ -152,9 +171,12 @@ export async function searchLemmas(
     where = or(...translit, like(lemmas.gloss, `%${q}%`), like(lemmas.glossJa, `%${q}%`), like(notesSq.notes, `%${q}%`));
   }
 
+  // A Strong's number names one lemma, so it is found in either testament.
+  if (mode !== "strongs") where = and(where, testament === "NT" ? eq(lemmas.language, "grc") : inArray(lemmas.language, ["hbo", "arc"]));
   if (opts.letter) {
-    // lemma_plain is accent-free lowercase, so the initial is simply its first character.
-    where = and(where, like(lemmas.lemmaPlain, `${normalizeGreek(opts.letter)}%`));
+    // lemma_plain is accent-free lowercase Greek / bare Hebrew consonants, so the initial is its first character.
+    const initial = containsHebrew(opts.letter) ? normalizeHebrew(opts.letter) : normalizeGreek(opts.letter);
+    where = and(where, like(lemmas.lemmaPlain, `${initial}%`));
   }
   if (opts.withNote) where = and(where, isNotNull(notesSq.notes));
   // Memo order only makes sense among lemmas that have memos.
@@ -191,7 +213,7 @@ export async function searchLemmas(
     // Natural ordering of memo text isn't expressible in SQLite; memo-filtered sets are small, so sort here.
     const all = ((await scoped(db.select(columns).from(lemmas).$dynamic())) as Row[]).map(toItem);
     all.sort((a, b) => compareNotes(a.notes, b.notes) || a.lemma.localeCompare(b.lemma));
-    return { items: all.slice((page - 1) * pageSize, page * pageSize), total: all.length, page, pageSize, mode, book: book?.code ?? null };
+    return { items: all.slice((page - 1) * pageSize, page * pageSize), total: all.length, page, pageSize, mode, testament, book: book?.code ?? null };
   }
 
   const order =
@@ -206,7 +228,7 @@ export async function searchLemmas(
       .offset((page - 1) * pageSize) as Promise<Row[]>,
     scoped(db.select({ total: sql<number>`count(*)` }).from(lemmas).$dynamic()) as Promise<{ total: number }[]>,
   ]);
-  return { items: rows.map(toItem), total, page, pageSize, mode, book: book?.code ?? null };
+  return { items: rows.map(toItem), total, page, pageSize, mode, testament, book: book?.code ?? null };
 }
 
 export interface LemmaDetail extends LemmaListItem {
@@ -252,6 +274,24 @@ export async function getLemmaDetail(db: Db, strongsId: string, userId: string):
   };
 }
 
+/** A segment of a Hebrew word (see scripts/tahot.ts / segmentsJson): prefix, root, suffix or punctuation. */
+export interface WordSegment {
+  /** root | affix | punctuation | separator */
+  k: "root" | "affix" | "punctuation" | "separator";
+  /** Hebrew */
+  h: string;
+  /** transliteration */
+  t?: string;
+  /** dStrong */
+  s?: string;
+  /** TEHMC morphology code */
+  m?: string;
+  /** trailing punctuation */
+  p?: string;
+  /** the tag also covers the next word */
+  c?: boolean;
+}
+
 export interface Token {
   position: number;
   surface: string;
@@ -259,6 +299,13 @@ export interface Token {
   english: string | null;
   editionInfo: string;
   wordType: string;
+  /** Hebrew words with prefixes/suffixes: their segments, in order; null otherwise. */
+  segments: WordSegment[] | null;
+  /** Qere words: the Ketiv (written) form, and its gloss when the meaning differs. */
+  ketiv: string | null;
+  ketivGloss: string | null;
+  /** OT: the English (BSB) chapter/verse of this word, when it differs from the MT numbering. */
+  engRef: { chapter: number; verse: number } | null;
   /** One entry per component lemma (more than one only for crasis forms). */
   parts: { lemmaId: number; strongsId: string; lemma: string; gloss: string | null; glossJa: string | null; morphology: string }[];
 }
@@ -281,6 +328,11 @@ type TokenRow = {
   english: string | null;
   editionInfo: string;
   wordType: string;
+  segments: string | null;
+  ketiv: string | null;
+  ketivGloss: string | null;
+  engChapter: number | null;
+  engVerse: number | null;
   lemmaId: number;
   strongsId: string;
   lemma: string;
@@ -308,6 +360,13 @@ function groupTokens(rows: TokenRow[]): VerseTokens[] {
         english: r.english,
         editionInfo: r.editionInfo,
         wordType: r.wordType,
+        segments: r.segments ? (JSON.parse(r.segments) as WordSegment[]) : null,
+        ketiv: r.ketiv,
+        ketivGloss: r.ketivGloss,
+        engRef:
+          r.engChapter !== null && r.engVerse !== null && (r.engChapter !== r.chapter || r.engVerse !== r.verse)
+            ? { chapter: r.engChapter, verse: r.engVerse }
+            : null,
         parts: [],
       };
       cur.tokens.push(tok);
@@ -328,6 +387,11 @@ const tokenColumns = {
   english: occurrences.englishGloss,
   editionInfo: occurrences.editionInfo,
   wordType: occurrences.wordType,
+  segments: occurrences.segments,
+  ketiv: occurrences.ketiv,
+  ketivGloss: occurrences.ketivGloss,
+  engChapter: occurrences.engChapter,
+  engVerse: occurrences.engVerse,
   lemmaId: occurrences.lemmaId,
   strongsId: lemmas.strongsId,
   lemma: lemmas.lemma,

@@ -25,11 +25,12 @@ export function containsGreek(s: string): boolean {
 }
 
 /** Normalises user input like "3056", "g3056", "G03056", "G2491G" to TAGNT form ("G3056", "G2491G"). */
-export function parseStrongs(input: string): { base: string; extended: string | null } | null {
-  const m = input.trim().match(/^g?\s*0*(\d{1,5})([a-z])?$/i);
+/** "G3056", "3056", "h1254a" → base and extended Strong's. A bare number uses `prefix` (G for the NT, H for the OT). */
+export function parseStrongs(input: string, prefix: "G" | "H" = "G"): { base: string; extended: string | null } | null {
+  const m = input.trim().match(/^([gh])?\s*0*(\d{1,5})([a-z])?$/i);
   if (!m) return null;
-  const base = `G${m[1].padStart(4, "0")}`;
-  return { base, extended: m[2] ? base + m[2].toUpperCase() : null };
+  const base = `${m[1] ? m[1].toUpperCase() : prefix}${m[2].padStart(4, "0")}`;
+  return { base, extended: m[3] ? base + m[3].toUpperCase() : null };
 }
 
 /**

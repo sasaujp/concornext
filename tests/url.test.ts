@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { lexiconHref, readParams, safeReturnPath } from "~/lib/url";
+import { lemmaHref, lexiconHref, readParams, safeReturnPath } from "~/lib/url";
 
 describe("lexicon URL state", () => {
   it("defaults to alphabetical order with no letter filter", () => {
@@ -31,5 +31,16 @@ describe("lexicon URL state", () => {
     expect(safeReturnPath("/?s=G3056")).toBe("/?s=G3056");
     expect(safeReturnPath("//evil.example")).toBeNull();
     expect(safeReturnPath("https://evil.example")).toBeNull();
+  });
+});
+
+describe("testament in the lexicon URL", () => {
+  it("round-trips t=ot and links Hebrew lemmas to the OT list", () => {
+    expect(readParams({}).testament).toBe("NT");
+    const ot = readParams({ t: "ot", l: "ב" });
+    expect(ot).toMatchObject({ testament: "OT", letter: "ב" });
+    expect(lexiconHref(ot)).toBe("/?l=%D7%91&t=ot");
+    expect(lemmaHref("H1254A")).toBe("/?t=ot&s=H1254A");
+    expect(lemmaHref("G3056")).toBe("/?s=G3056");
   });
 });
