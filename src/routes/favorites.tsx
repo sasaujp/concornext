@@ -8,7 +8,7 @@ import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardHeader } from "~/components/ui/card";
 import { Skeleton } from "~/components/ui/skeleton";
 import { bookByCode, displayRef } from "~/lib/books";
-import { scopeBookQuery, versesTokensQuery } from "~/lib/queries";
+import { scopeBooksQuery, versesTokensQuery } from "~/lib/queries";
 import { passageHref, verseHref } from "~/lib/url";
 
 type FavoritesParams = { all?: string };
@@ -18,9 +18,20 @@ export default function FavoritesPage() {
   const location = useLocation();
   const [search] = useSearchParams<FavoritesParams>();
   const favs = useFavorites();
-  const scope = createAsync(() => scopeBookQuery());
-  const showAll = () => search.all === "1" || !scope();
-  const shown = () => (favs.list() ?? []).filter(f => showAll() || f.book === scope());
+  // Limited to the header's books: a verse is shown when its testament has no book chosen or it is in that book.
+  const scopes = createAsync(() => scopeBooksQuery());
+  const scopeNames = () =>
+    (["OT", "NT"] as const)
+      .filter(t => scopes()?.[t])
+      .map(t => `${t === "OT" ? "旧約" : "新約"}は${bookByCode(scopes()![t]!)?.ja}`)
+      .join("、");
+  const showAll = () => search.all === "1" || !scopeNames();
+  const inScope = (book: string) => {
+    const t = bookByCode(book)?.testament;
+    const s = t ? scopes()?.[t] : null;
+    return !s || s === book;
+  };
+  const shown = () => (favs.list() ?? []).filter(f => showAll() || inScope(f.book));
   const hiddenCount = () => (favs.list()?.length ?? 0) - shown().length;
 
   // Greek text for the listed verses, loaded separately so the list (and memos) render first.
@@ -47,18 +58,18 @@ export default function FavoritesPage() {
           <Star class="size-5 fill-amber-400 text-amber-500" aria-hidden="true" /> お気に入りの節
         </h1>
         <Suspense>
-          <Show when={scope()}>
-            {book => (
+          <Show when={scopeNames()}>
+            {names => (
               <Show
                 when={showAll()}
                 fallback={
                   <A href="/favorites?all=1" class="text-sm text-muted-foreground hover:text-foreground hover:underline">
-                    {bookByCode(book())?.ja}のみ表示中 — すべての書を表示{hiddenCount() ? `（ほか ${hiddenCount()} 節）` : ""}
+                    ヘッダーの書で絞り込み中（{names()}） — すべての書を表示{hiddenCount() ? `（ほか ${hiddenCount()} 節）` : ""}
                   </A>
                 }
               >
                 <A href="/favorites" class="text-sm text-muted-foreground hover:text-foreground hover:underline">
-                  {bookByCode(book())?.ja}だけを表示
+                  ヘッダーの書（{names()}）で絞り込む
                 </A>
               </Show>
             )}

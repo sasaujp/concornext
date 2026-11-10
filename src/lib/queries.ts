@@ -15,7 +15,7 @@ import {
   fetchVerse,
   fetchVersesTokens,
   generateAnalysis,
-  fetchScopeBook,
+  fetchScopeBooks,
   updateFavorite,
   updateFavoriteNote,
   updateLemmaNote,
@@ -34,8 +34,8 @@ export const cachedAnalysisQuery = query(fetchCachedAnalysis, "cached-analysis")
 export const appInfoQuery = query(fetchAppInfo, "app-info");
 export const analyzeAction = action(generateAnalysis, "analyze");
 export const saveNoteAction = action(updateLemmaNote, "save-note");
-/** Book chosen in the header; stored in D1 (app_settings). */
-export const scopeBookQuery = query(fetchScopeBook, "scope-book");
+/** Books chosen in the header, one per testament ({ NT, OT }); stored in D1 (user_settings). */
+export const scopeBooksQuery = query(fetchScopeBooks, "scope-books");
 export const setScopeBookAction = action(updateScopeBook, "set-scope-book");
 
 /** The user's favourite verses (with memos), in Bible order. */

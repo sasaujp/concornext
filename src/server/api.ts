@@ -18,7 +18,7 @@ import {
   getConcordance,
   getLemmaDetail,
   getPassageTokens,
-  getScopeBook,
+  getScopeBooks,
   getVerseNeighbours,
   getVerseTokens,
   getVersesTokens,
@@ -57,12 +57,13 @@ export async function fetchLemmaList(
   return searchLemmas(getDb(), { userId: user.id, q, sort, letter, withNote, book, testament, page, pageSize: 50 });
 }
 
-export async function fetchScopeBook() {
-  return getScopeBook(getDb(), requireUser().id);
+/** The header's book for each testament. */
+export async function fetchScopeBooks() {
+  return getScopeBooks(getDb(), requireUser().id);
 }
 
-export async function updateScopeBook(code: string | null) {
-  return setScopeBook(getDb(), requireUser().id, code);
+export async function updateScopeBook(testament: Testament, code: string | null) {
+  return setScopeBook(getDb(), requireUser().id, testament === "OT" ? "OT" : "NT", code);
 }
 
 export async function updateLemmaNote(strongsId: string, book: string, note: string) {

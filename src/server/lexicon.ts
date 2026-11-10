@@ -612,27 +612,48 @@ export async function saveLemmaNote(db: Db, userId: string, bookCode: string, st
   return note;
 }
 
-const SCOPE_BOOK_KEY = "scope_book";
+/** The book chosen in the header, remembered separately for each testament (null = the whole testament). */
+export type ScopeBooks = Record<Testament, string | null>;
 
-/** The user's book chosen in the header (stored in D1), or null for the whole NT. */
-export async function getScopeBook(db: Db, userId: string): Promise<string | null> {
-  const [row] = await db
-    .select({ value: userSettings.value })
+const SCOPE_KEYS: Record<Testament, string> = { NT: "scope_book_nt", OT: "scope_book_ot" };
+/** Before the OT was added there was a single key; its book counts for that book's testament. */
+const LEGACY_SCOPE_KEY = "scope_book";
+
+export async function getScopeBooks(db: Db, userId: string): Promise<ScopeBooks> {
+  const rows = await db
+    .select({ key: userSettings.key, value: userSettings.value })
     .from(userSettings)
-    .where(and(eq(userSettings.userId, userId), eq(userSettings.key, SCOPE_BOOK_KEY)));
-  return row && bookByCode(row.value) ? row.value : null;
+    .where(and(eq(userSettings.userId, userId), inArray(userSettings.key, [LEGACY_SCOPE_KEY, SCOPE_KEYS.NT, SCOPE_KEYS.OT])));
+  const out: ScopeBooks = { NT: null, OT: null };
+  const legacy = rows.find(r => r.key === LEGACY_SCOPE_KEY);
+  const legacyBook = legacy ? bookByCode(legacy.value) : undefined;
+  if (legacyBook) out[legacyBook.testament] = legacyBook.code;
+  for (const t of ["NT", "OT"] as const) {
+    const row = rows.find(r => r.key === SCOPE_KEYS[t]);
+    const book = row ? bookByCode(row.value) : undefined;
+    if (book?.testament === t) out[t] = book.code;
+  }
+  return out;
 }
 
-export async function setScopeBook(db: Db, userId: string, code: string | null): Promise<string | null> {
+/** Sets (or clears, with null) the header book of one testament; the other testament's choice is kept. */
+export async function setScopeBook(db: Db, userId: string, testament: Testament, code: string | null): Promise<ScopeBooks> {
   const book = code ? bookByCode(code) : undefined;
-  if (!book) {
-    await db.delete(userSettings).where(and(eq(userSettings.userId, userId), eq(userSettings.key, SCOPE_BOOK_KEY)));
-    return null;
-  }
+  if (book && book.testament !== testament) throw new Error(`${book.code} is not in the ${testament}`);
+  const next = { ...(await getScopeBooks(db, userId)), [testament]: book?.code ?? null };
   const updatedAt = new Date().toISOString();
-  await db
-    .insert(userSettings)
-    .values({ userId, key: SCOPE_BOOK_KEY, value: book.code, updatedAt })
-    .onConflictDoUpdate({ target: [userSettings.userId, userSettings.key], set: { value: book.code, updatedAt } });
-  return book.code;
+  const stmts = [
+    // Folded into the per-testament keys from now on.
+    db.delete(userSettings).where(and(eq(userSettings.userId, userId), eq(userSettings.key, LEGACY_SCOPE_KEY))),
+    ...(["NT", "OT"] as const).map(t =>
+      next[t]
+        ? db
+            .insert(userSettings)
+            .values({ userId, key: SCOPE_KEYS[t], value: next[t]!, updatedAt })
+            .onConflictDoUpdate({ target: [userSettings.userId, userSettings.key], set: { value: next[t]!, updatedAt } })
+        : db.delete(userSettings).where(and(eq(userSettings.userId, userId), eq(userSettings.key, SCOPE_KEYS[t]))),
+    ),
+  ];
+  await db.batch(stmts as [(typeof stmts)[number], ...typeof stmts]);
+  return next;
 }

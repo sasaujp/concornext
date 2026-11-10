@@ -11,7 +11,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "~/com
 import { Skeleton } from "~/components/ui/skeleton";
 import { scriptAttrs } from "~/lib/script";
 import { BOOKS, bookByCode, CHAPTER_END, displayPassage, formatPassage, parsePassage, type Passage } from "~/lib/books";
-import { bsbQuery, outlineQuery, passageQuery, scopeBookQuery, type Token, type VerseTokens } from "~/lib/queries";
+import { bsbQuery, outlineQuery, passageQuery, scopeBooksQuery, type Token, type VerseTokens } from "~/lib/queries";
+import { useCurrentTestament } from "~/lib/testament";
 import { type PassageParams, passageHref, verseHref } from "~/lib/url";
 
 const EXAMPLES = ["Jhn.1.1-18", "Mat.5.1-12", "Rom.8", "1Co.13", "Php.2.5-11", "Heb.1.1-4"];
@@ -57,7 +58,9 @@ const fieldClass =
 function PassagePicker(props: { passage: Passage | null; raw: string }) {
   const navigate = useNavigate();
   const outline = createAsync(() => outlineQuery());
-  const scope = createAsync(() => scopeBookQuery());
+  const scopes = createAsync(() => scopeBooksQuery());
+  const testament = useCurrentTestament();
+  const scope = () => scopes()?.[testament()] ?? null;
 
   // User choices; undefined = follow the passage on screen. Reset whenever that passage changes.
   const [book, setBook] = createSignal<string>();
@@ -78,7 +81,7 @@ function PassagePicker(props: { passage: Passage | null; raw: string }) {
 
   const p = () => props.passage;
   const singleChapter = () => !!p() && p()!.from.chapter === p()!.to.chapter;
-  const curBook = () => book() ?? p()?.book.code ?? scope() ?? "Mat";
+  const curBook = () => book() ?? p()?.book.code ?? scope() ?? (testament() === "OT" ? "Gen" : "Mat");
   const chapters = () => outline()?.[curBook()] ?? [];
   const curChapter = () => Math.min(chapter() ?? p()?.from.chapter ?? 1, Math.max(chapters().length, 1));
   const verseCount = () => chapters()[curChapter() - 1] ?? 0;

@@ -5,7 +5,8 @@ import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
 import { TextField, TextFieldInput } from "~/components/ui/text-field";
 import { bookByCode } from "~/lib/books";
-import { saveNoteAction, scopeBookQuery } from "~/lib/queries";
+import { saveNoteAction, scopeBooksQuery } from "~/lib/queries";
+import { testamentOfStrongs } from "~/lib/testament";
 import type { LemmaNote } from "~/server/lexicon";
 
 const MAX = 200;
@@ -17,7 +18,9 @@ const bookName = (code: string) => bookByCode(code)?.ja ?? code;
  * book's memo is listed read-only.
  */
 export function NoteEditor(props: { strongsId: string; notes: LemmaNote[] }) {
-  const scope = createAsync(() => scopeBookQuery());
+  // The header's book for this lemma's testament (memos are kept per book).
+  const scopes = createAsync(() => scopeBooksQuery());
+  const scope = () => scopes()?.[testamentOfStrongs(props.strongsId)] ?? null;
   const save = useAction(saveNoteAction);
   const submission = useSubmission(saveNoteAction, ([id]) => id === props.strongsId);
   const [editing, setEditing] = createSignal(false);

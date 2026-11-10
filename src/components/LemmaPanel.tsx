@@ -16,7 +16,8 @@ import { Skeleton } from "~/components/ui/skeleton";
 import { SegmentBreakdown } from "~/components/HebrewWord";
 import { displayRef } from "~/lib/books";
 import { bareWord, scriptAttrs } from "~/lib/script";
-import { bsbQuery, concordanceQuery, lemmaDetailQuery, scopeBookQuery, type ConcordancePage, type LemmaDetail } from "~/lib/queries";
+import { bsbQuery, concordanceQuery, lemmaDetailQuery, scopeBooksQuery, type ConcordancePage, type LemmaDetail } from "~/lib/queries";
+import { testamentOfStrongs } from "~/lib/testament";
 import { type LexiconParams, lexiconHref, readParams, verseHref } from "~/lib/url";
 
 const ALL_BOOKS = "all";
@@ -146,7 +147,9 @@ function useUrlConcordanceState(): ConcordanceState {
 export function Concordance(props: { lemma: LemmaDetail; state?: ConcordanceState }) {
   const state = props.state ?? useUrlConcordanceState();
   const location = useLocation();
-  const scope = createAsync(() => scopeBookQuery());
+  const scopes = createAsync(() => scopeBooksQuery());
+  /** The header's book for this lemma's testament. */
+  const scope = () => scopes()?.[testamentOfStrongs(props.lemma.strongsId)] ?? null;
   /**
    * Concordance filter: an explicit ?book= wins ("all" = every book); otherwise the header's book,
    * if this lemma occurs there.
@@ -164,7 +167,7 @@ export function Concordance(props: { lemma: LemmaDetail; state?: ConcordanceStat
     if (explicit === ALL_BOOKS) book = null;
     else if (explicit) book = explicit;
     else {
-      const s = await scopeBookQuery();
+      const s = (await scopeBooksQuery())[testamentOfStrongs(strongsId)];
       book = s && books.includes(s) ? s : null;
     }
     return [strongsId, book, cp] as const;

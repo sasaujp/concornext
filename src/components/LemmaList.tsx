@@ -11,7 +11,7 @@ import { GREEK_ALPHABET } from "~/lib/greek";
 import { HEBREW_ALPHABET } from "~/lib/hebrew";
 import { bookByCode, type Testament } from "~/lib/books";
 import { scriptAttrs } from "~/lib/script";
-import { lemmaListQuery, scopeBookQuery } from "~/lib/queries";
+import { lemmaListQuery, scopeBooksQuery } from "~/lib/queries";
 import { cn } from "~/lib/utils";
 import { defaultSort, type LexiconParams, lexiconHref, readParams } from "~/lib/url";
 
@@ -34,15 +34,18 @@ export function LemmaList() {
   const [search, setSearch] = useSearchParams<LexiconParams>();
   const params = () => readParams(search);
   const [draft, setDraft] = createSignal(params().q);
-  // The header's book decides the testament when one is chosen; otherwise the 新約／旧約 switch (URL "t").
-  const scope = createAsync(() => scopeBookQuery());
-  const scopeBook = () => (scope() ? bookByCode(scope()!) : undefined);
-  const testament = (): Testament => scopeBook()?.testament ?? params().testament;
+  // The 新約／旧約 switch (URL "t"); each testament has its own header book, which narrows the list.
+  const scopes = createAsync(() => scopeBooksQuery());
+  const testament = (): Testament => params().testament;
+  const scopeBook = () => {
+    const code = scopes()?.[testament()];
+    return code ? bookByCode(code) : undefined;
+  };
   // The header's book scope (D1) narrows the list; counts and frequency order are then within that book.
   // (All reactive reads happen before the await, see the note in LemmaPanel's Concordance.)
   const list = createAsync(async () => {
     const { q, sort, letter, memo, page, testament } = params();
-    return lemmaListQuery(q, sort, letter, memo, await scopeBookQuery(), page, testament);
+    return lemmaListQuery(q, sort, letter, memo, (await scopeBooksQuery())[testament], page, testament);
   });
 
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -63,7 +66,6 @@ export function LemmaList() {
             size="sm"
             variant="outline"
             value={testament()}
-            disabled={!!scopeBook()}
             // Switching testaments clears the letter filter (Greek vs Hebrew letters) and paging.
             onChange={v => v && v !== params().testament && setSearch({ t: v === "OT" ? "ot" : undefined, l: undefined, page: undefined })}
             aria-label="新約・旧約"
