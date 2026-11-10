@@ -38,11 +38,13 @@ export default function Lexicon() {
   const [search] = useSearchParams<LexiconParams>();
   const params = () => readParams(search);
   return (
-    <div class="mx-auto grid h-[calc(100dvh-3.5rem)] max-w-[1600px] grid-cols-[minmax(0,1fr)] lg:grid-cols-[400px_minmax(0,1fr)]">
+    <div class="mx-auto grid h-[calc(100dvh-3.5rem-1px)] max-w-[1600px] grid-cols-[minmax(0,1fr)] lg:grid-cols-[400px_minmax(0,1fr)]">
       <aside class={cn("min-h-0 border-r", params().s ? "hidden lg:block" : "block")}>
         <LemmaList />
       </aside>
-      <div id="detail-scroll" class={cn("min-h-0 overflow-y-auto overflow-x-hidden", params().s ? "block" : "hidden lg:block")}>
+      {/* `relative` keeps absolutely positioned descendants (sr-only labels deep in the concordance) inside this
+          scroller; otherwise they size the whole document and the page itself scrolls into blank space. */}
+      <div id="detail-scroll" class={cn("relative min-h-0 overflow-y-auto overflow-x-hidden", params().s ? "block" : "hidden lg:block")}>
         <Show when={params().s} keyed fallback={<Welcome />}>
           {s => <LemmaPanel strongsId={s} />}
         </Show>

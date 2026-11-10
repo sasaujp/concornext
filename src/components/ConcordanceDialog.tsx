@@ -50,7 +50,7 @@ function Body(props: { strongsId: string }) {
   };
 
   return (
-    <div ref={scroller} class="max-h-[92dvh] space-y-5 overflow-y-auto p-4 sm:p-6">
+    <div ref={scroller} class="relative max-h-[92dvh] space-y-5 overflow-y-auto p-4 sm:p-6">
       <div class="flex flex-wrap items-center gap-x-3 gap-y-1 pr-8">
         <DialogTitle class="text-sm font-medium text-muted-foreground">コンコルダンス</DialogTitle>
         <Button as={A} href={lemmaHref(props.strongsId)} variant="link" size="sm" class="h-auto px-0">

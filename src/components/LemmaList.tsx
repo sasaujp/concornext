@@ -61,7 +61,7 @@ export function LemmaList() {
   return (
     <section class="flex h-full min-h-0 flex-col" aria-label="見出し語一覧">
       <div class="space-y-3 border-b p-3">
-        <div class="flex items-center gap-2">
+        <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
           <ToggleGroup
             size="sm"
             variant="outline"
@@ -70,10 +70,10 @@ export function LemmaList() {
             onChange={v => v && v !== params().testament && setSearch({ t: v === "OT" ? "ot" : undefined, l: undefined, page: undefined })}
             aria-label="新約・旧約"
           >
-            <ToggleGroupItem value="NT" class="h-8 px-3 text-xs data-[pressed]:bg-primary data-[pressed]:text-primary-foreground">
+            <ToggleGroupItem value="NT" class="h-8 whitespace-nowrap px-3 text-xs data-[pressed]:bg-primary data-[pressed]:text-primary-foreground">
               新約（ギリシャ語）
             </ToggleGroupItem>
-            <ToggleGroupItem value="OT" class="h-8 px-3 text-xs data-[pressed]:bg-primary data-[pressed]:text-primary-foreground">
+            <ToggleGroupItem value="OT" class="h-8 whitespace-nowrap px-3 text-xs data-[pressed]:bg-primary data-[pressed]:text-primary-foreground">
               旧約（ヘブライ語）
             </ToggleGroupItem>
           </ToggleGroup>
@@ -198,7 +198,7 @@ export function LemmaList() {
         </Suspense>
       </div>
 
-      <div class="min-h-0 flex-1 overflow-y-auto">
+      <div class="relative min-h-0 flex-1 overflow-y-auto">
         <Suspense fallback={<ListSkeleton />}>
           <Show
             when={list()?.items.length}
