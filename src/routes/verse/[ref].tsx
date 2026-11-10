@@ -207,13 +207,7 @@ export default function VersePage() {
                     </Show>
                   </div>
 
-                  <Show when={isOT() && selectedPos()}>
-                    <Alert>
-                      <AlertTitle>旧約の AI 文法解析は準備中です</AlertTitle>
-                      <AlertDescription>語形・辞書形などの確定データは上に表示しています。</AlertDescription>
-                    </Alert>
-                  </Show>
-                  <Show when={!isOT() && selectedPos() && targetStrongs()} keyed>
+                  <Show when={selectedPos() && targetStrongs()} keyed>
                     {_ => (
                       <AnalysisSection
                         book={v().book}
@@ -319,7 +313,9 @@ function AnalysisSection(props: {
             <Match when={true}>
               <div class="flex flex-col items-start gap-3">
                 <p class="text-sm text-muted-foreground">
-                  この節の構文、対象語の語形、アオリストの相と時間、逐語訳・自然訳を Claude Haiku が日本語で解説します。結果は保存され、次回からすぐに表示されます。
+                  {bookByCode(props.book)?.testament === "OT"
+                    ? "この節の構文、対象語の語形（接頭辞・接尾辞を含む）、動詞の語幹と活用形の働き、逐語訳・自然訳を Claude Haiku が日本語で解説します。結果は保存され、次回からすぐに表示されます。"
+                    : "この節の構文、対象語の語形、アオリストの相と時間、逐語訳・自然訳を Claude Haiku が日本語で解説します。結果は保存され、次回からすぐに表示されます。"}
                 </p>
                 <Button onClick={() => run(false)}>
                   <Sparkles class="size-4" aria-hidden="true" /> 文法解析を生成

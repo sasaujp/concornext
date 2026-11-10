@@ -155,10 +155,12 @@ describe.skipIf(!available)("lemma memos", () => {
 });
 
 describe.skipIf(!available)("Japanese glosses", () => {
-  it("has a Japanese gloss for every Greek lemma", () => {
-    const [r] = d1<{ total: number; ja: number }>(`SELECT count(*) AS total, sum(gloss_ja IS NOT NULL AND gloss_ja <> '') AS ja FROM lemmas WHERE language = 'grc'`);
+  it("has a Japanese gloss for every lemma (Greek, Hebrew and Aramaic)", () => {
+    const [r] = d1<{ total: number; ja: number }>(`SELECT count(*) AS total, sum(gloss_ja IS NOT NULL AND gloss_ja <> '') AS ja FROM lemmas`);
     expect(r.ja).toBe(r.total);
     const [l] = d1<{ gloss_ja: string }>(`SELECT gloss_ja FROM lemmas WHERE strongs_id = 'G3056'`);
     expect(l.gloss_ja).toBe("ことば");
+    const [h] = d1<{ gloss_ja: string }>(`SELECT gloss_ja FROM lemmas WHERE strongs_id = 'H1254A'`);
+    expect(h.gloss_ja).toBe("創造する");
   });
 });

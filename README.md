@@ -1,11 +1,11 @@
 # ConcorNext
 
-古代ギリシャ語新約聖書を、原文と実例から学ぶための個人用 Web アプリです。
+聖書を原語（新約はギリシャ語、旧約はヘブライ語・アラム語）で、原文と実例から学ぶための個人用 Web アプリです。
 
-1. 見出し語（lemma）を一覧から選ぶ（既定はアルファベット順。ギリシャ文字の頭文字ボタンで絞り込み、転写（見出し語・活用形とも。例: logos, egeneto）・英語の語義・Strong's 番号で検索。転写は長音記号と h の有無を区別しない。ギリシャ語での入力も可）
+1. 見出し語（lemma）を一覧から選ぶ（一覧の上で新約／旧約を切り替え。既定はアルファベット順。頭文字ボタンで絞り込み、転写（見出し語・活用形とも。例: logos, egeneto, bara）・英語や日本語の語義・Strong's 番号（G3056, H1254）で検索。転写は長音記号と h の有無を区別しない。ギリシャ語・ヘブライ語での入力も可。ヘブライ語は母音記号なしでよく、接頭辞の付いた形（וַיֹּאמֶר）でも引ける）
    - 各見出し語に 1 行のメモ（例: 釈義ノートの記載場所「ノート1巻 p.4-7」）を付けられる。メモは一覧に表示され、「メモあり」で絞り込み・メモの文字列で検索ができる
-2. その語の全出現箇所（コンコルダンス）を、ギリシャ語本文・BSB 英訳・形態素つきで聖書順に読む
-3. 任意の節から Claude Haiku による日本語の文法解析（構文・語形・アオリスト・翻訳）を開く
+2. その語の全出現箇所（コンコルダンス）を、原文・BSB 英訳・形態素つきで聖書順に読む（ヘブライ語は右から左に表示し、語の構成（ב + רֵאשִׁית）も示す）
+3. 任意の節から Claude Haiku による日本語の文法解析（構文・語形・新約はアオリスト／旧約は動詞の語幹と活用形・翻訳）を開く
 
 逆向きに、章・節の範囲（例: `ヨハネ 1:1-18`、`John 3`、`Mat 5-7`）から本文を開き、語をクリックして語形・辞書形を見て、そこからコンコルダンスや文法解析に進むこともできます（ヘッダーの「本文」、`/passage?r=Jhn.1.1-18`）。
 
@@ -52,11 +52,12 @@ SSR、サーバー関数、D1 アクセス、Anthropic API 呼び出しは、す
 
 ### 日本語の語義
 
-見出し語の英語の語義（TBESG）は、Claude Haiku で短い日本語の語義に訳し、`data/glosses-ja.json`（Strong's 番号 → 訳語）としてリポジトリに含めています。`pnpm data:build` のときに `lemmas.gloss_ja` に入ります。画面では日本語の語義を主に、英語を小さく併記します。日本語の語義でも検索できます。
+見出し語の英語の語義（新約は TBESG、旧約は TBESH の Gloss 列）は、Claude Haiku で短い日本語の語義に訳し、`data/glosses-ja.json`（Strong's 番号 → 訳語）としてリポジトリに含めています。`pnpm data:build` のときに `lemmas.gloss_ja` に入ります。画面では日本語の語義を主に、英語を小さく併記します。日本語の語義でも検索できます。
 
 - 訳すときには、英語の語義に加えてギリシャ語の見出し語・品詞・辞書の冒頭を渡し、曖昧な語（例: λόγος の "word" → 「ことば」）は新約聖書での意味で訳させています。
-- 「lord: God」のように用法を区別している語義は、「主：神」のように区別を保ったまま訳します。固有名詞は、日本語の聖書で一般的なカタカナ表記にします。
-- 足りない分だけを訳す（再開できる）: `pnpm data:translate-glosses`。特定の語だけ訳し直す: `pnpm data:translate-glosses --redo G3056`。訳語を手で直す場合は JSON を編集してから `pnpm data:build` と `data:import` を実行してください。
+- 「lord: God」のように用法を区別している語義は、「主：神」のように区別を保ったまま訳します。固有名詞は、日本語の聖書（新共同訳・聖書協会共同訳）で一般的なカタカナ表記にします（新約・旧約とも）。
+- ヘブライ語・アラム語は別のプロンプトで訳します（ヘブライ語の見出し語と BDB 概要・Strong's の冒頭を渡す。YHWH は「主」、代名詞接尾辞は「彼を／彼の」）。
+- 足りない分だけを訳す（再開できる）: `pnpm data:translate-glosses`（`--lang hbo` / `--lang grc` で片方だけ）。特定の語だけ訳し直す: `pnpm data:translate-glosses --redo G3056 H1254A`（名前を挙げた語だけを訳し直します）。訳語を手で直す場合は JSON を編集してから `pnpm data:build` と `data:import` を実行してください。
 
 ### NA28 の扱い
 
@@ -178,6 +179,7 @@ tests/                       Vitest
 
 - プロンプトには、節の全語について確定データを渡します（語形、lemma、Strong's、形態素コードとその日本語展開）。あわせて対象語の位置、その節のアオリスト一覧、BSB 英訳、前後の節も渡します。
 - 結果は `output_config.format`（zod スキーマ）で構造化 JSON として受け取ります。サーバー側ではスキーマで再検証し、`reconcileAnalysis` で確定データと照合します。形態素上アオリストでない語へのアオリスト解説や、存在しない位置番号への言及は破棄します。
+- 旧約の節は別のプロンプト（`src/server/analysis-hebrew.ts`）とスキーマ（`HebrewAnalysisSchema`）で解析します。C 節はアオリストの代わりに「動詞の形」（語幹と活用形の働き）で、`reconcileHebrewAnalysis` が確定データで動詞とされていない語の説明を破棄します。各語の接頭辞・接尾辞とケティブも確定データとして渡します。プロンプトのバージョンは新約と別に持つので、新約の保存済み解析はそのまま使えます。
 - 結果は `ai_analyses` に保存します。キャッシュキーは「箇所・選択語・語の位置・本文データのバージョン（STEPBible の SHA と BSB）・プロンプトのバージョン・モデル ID」の SHA-256 です。「再生成」で明示的に作り直せます。
 
 ## 既知の制約・今後の課題
@@ -185,7 +187,8 @@ tests/                       Vitest
 - 本文の語順は TAGNT の基準順のままで、NA28 での語順の違いは ↔ で示すだけです。並べ替えはしていません。
 - 版の違いによる節番号のずれ（例: `Act.19.41(19.40)`）は NRSV 準拠の主番号で扱っています。BSB とは概ね一致しますが、完全ではありません。
 - BSB は 1 リクエストあたり最大 12 章分まで取得します（Workers のサブリクエスト上限への配慮）。残りは次に表示したときに取得します。
-- 語義は英語（TBESG）のみで、日本語の語義はありません。
+- 日本語の語義は Claude Haiku の訳で、誤りを含むことがあります（気づいた語は `data/glosses-ja.json` を直接直すか `--redo` で訳し直す）。
+- 旧約の英訳（BSB）は英語の章節で対応づけています。1 つの MT 節が英語の 2 節にまたがる箇所（約 60 節）では、両方の英訳を並べて表示します。
 
 ## ライセンス
 
@@ -195,5 +198,5 @@ STEPBible の元データ（TAGNT・TBESG・TAHOT・TBESH・TEHMC）、Open Scri
 
 - STEPBible TAGNT / TBESG / TAHOT / TBESH / TEHMC: © STEPBible.org / Tyndale House Cambridge, [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)。配布元: https://github.com/STEPBible/STEPBible-Data（TBESH の Meaning 列は Online Bible の著作物のため使っていません）
 - Open Scriptures Hebrew Lexicon: BDB と Strong's の本文はパブリックドメイン、XML は Open Scriptures Hebrew Bible Project による [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)。配布元: https://github.com/openscriptures/HebrewLexicon
-- `data/glosses-ja.json`: TBESG の英語の語義を Claude Haiku で日本語に訳したもの（TBESG の派生物として CC BY 4.0）
+- `data/glosses-ja.json`: TBESG・TBESH の英語の語義（TBESH は Gloss 列のみ）を Claude Haiku で日本語に訳したもの（TBESG・TBESH の派生物として CC BY 4.0）
 - Berean Standard Bible: パブリックドメイン（bible.helloao.org の Free Use Bible API 経由）

@@ -3,12 +3,13 @@ import { CopyButton } from "~/components/CopyButton";
 import { MorphBadges } from "~/components/MorphBadges";
 import { Separator } from "~/components/ui/separator";
 import { Tabs, TabsContent, TabsIndicator, TabsList, TabsTrigger } from "~/components/ui/tabs";
-import { type AnalysisSectionKey, sectionAsText } from "~/lib/analysis-text";
+import { type AnalysisSectionKey, sectionAsText, sectionC, sectionTitle } from "~/lib/analysis-text";
 import type { AnalysisResponse, Token } from "~/lib/queries";
+import { bareWord, scriptAttrs } from "~/lib/script";
 
 type Ok = Extract<AnalysisResponse, { status: "ok" }>;
 
-const clean = (s: string) => s.replace(/[¶,.;·:]+$/g, "").replace("¶", "");
+const clean = bareWord;
 
 function Section(props: { title: string; children: import("solid-js").JSX.Element }) {
   return (
@@ -34,12 +35,11 @@ export function AnalysisView(props: {
   const a = () => props.result.analysis;
   /** A word's surface (or its lemmas), tappable to open the concordance of its (first) lemma. */
   const WordButton = (p: { token: Token; class: string; children: import("solid-js").JSX.Element }) => (
-    <Show when={props.onLemma} fallback={<span class={p.class} lang="grc">{p.children}</span>}>
+    <Show when={props.onLemma} fallback={<span {...scriptAttrs(p.token.surface, p.class)}>{p.children}</span>}>
       {onLemma => (
         <button
           type="button"
-          class={`${p.class} text-left underline decoration-dotted decoration-1 underline-offset-4 hover:decoration-solid`}
-          lang="grc"
+          {...scriptAttrs(p.token.surface, `${p.class} text-start underline decoration-dotted decoration-1 underline-offset-4 hover:decoration-solid`)}
           title="コンコルダンスを開く"
           onClick={() => onLemma()(p.token.parts[0].strongsId)}
         >
@@ -67,7 +67,7 @@ export function AnalysisView(props: {
         <TabsList class="flex h-auto w-full flex-wrap justify-start">
           <TabsTrigger value="syntax">A. 構文</TabsTrigger>
           <TabsTrigger value="morph">B. 語形</TabsTrigger>
-          <TabsTrigger value="aorist">C. アオリスト</TabsTrigger>
+          <TabsTrigger value="aorist">{sectionTitle("aorist", a())}</TabsTrigger>
           <TabsTrigger value="translation">D. 翻訳</TabsTrigger>
           <TabsTrigger value="notes">E. 注意</TabsTrigger>
           <TabsIndicator />
@@ -82,9 +82,7 @@ export function AnalysisView(props: {
                 <li class="rounded-md border p-3">
                   <div class="flex flex-wrap items-baseline gap-2">
                     <span class="rounded bg-secondary px-1.5 py-0.5 text-xs">{c.kind}</span>
-                    <span class="greek text-lg" lang="grc">
-                      {c.greek}
-                    </span>
+                    <span {...scriptAttrs(c.greek, "text-lg")}>{c.greek}</span>
                   </div>
                   <p class="mt-1 text-sm leading-7">{c.explanation}</p>
                 </li>
@@ -100,14 +98,14 @@ export function AnalysisView(props: {
               {t => (
                 <div class="space-y-2 rounded-md border p-3">
                   <div class="flex flex-wrap items-center gap-2">
-                    <WordButton token={t()} class="greek text-xl font-semibold">
+                    <WordButton token={t()} class="text-xl font-semibold">
                       {clean(t().surface)}
                     </WordButton>
-                    <span class="greek text-muted-foreground" lang="grc">
-                      ← {t().parts.map(p => p.lemma).join(" + ")}
+                    <span class="text-muted-foreground">
+                      ← <span {...scriptAttrs(t().surface)}>{t().parts.map(p => p.lemma).join(" + ")}</span>
                     </span>
                   </div>
-                  <For each={t().parts}>{p => <MorphBadges code={p.morphology} />}</For>
+                  <For each={t().parts}>{p => <MorphBadges code={p.morphology} strongsId={p.strongsId} />}</For>
                   <dl class="grid gap-2 text-sm sm:grid-cols-[8rem_1fr]">
                     <dt class="text-muted-foreground">文中での役割</dt>
                     <dd>{a().targetWord.syntacticRole}</dd>
@@ -138,17 +136,17 @@ export function AnalysisView(props: {
                       <tr class={`border-b align-top ${t.position === a().targetWord.position ? "bg-highlight/40" : ""}`}>
                         <td class="py-1.5 pr-2 tabular-nums text-muted-foreground">{t.position}</td>
                         <td class="py-1.5 pr-2">
-                          <WordButton token={t} class="greek text-base">
+                          <WordButton token={t} class="text-base">
                             {clean(t.surface)}
                           </WordButton>
                         </td>
                         <td class="py-1.5 pr-2">
-                          <WordButton token={t} class="greek text-base">
+                          <WordButton token={t} class="text-base">
                             {t.parts.map(p => p.lemma).join(" + ")}
                           </WordButton>
                         </td>
                         <td class="py-1.5 pr-2">
-                          <For each={t.parts}>{p => <MorphBadges code={p.morphology} />}</For>
+                          <For each={t.parts}>{p => <MorphBadges code={p.morphology} strongsId={p.strongsId} />}</For>
                         </td>
                         <td class="py-1.5">{roleOf(t.position) ?? "—"}</td>
                       </tr>
@@ -162,32 +160,32 @@ export function AnalysisView(props: {
 
         <TabsContent value="aorist" class="space-y-4 pt-3">
           {copyBar("aorist")}
-          <Show when={a().aorist.items.length} fallback={<Prose text={a().aorist.absenceNote || "この節にはアオリスト形の語はありません。"} />}>
-            <For each={a().aorist.items}>
+          <Show when={sectionC(a()).items.length} fallback={<Prose text={sectionC(a()).absenceNote} />}>
+            <For each={sectionC(a()).items}>
               {item => (
                 <article class="space-y-2 rounded-md border p-3">
                   <Show when={tokenAt(item.position)}>
                     {t => (
                       <div class="flex flex-wrap items-center gap-2">
-                        <WordButton token={t()} class="greek text-xl font-semibold">
+                        <WordButton token={t()} class="text-xl font-semibold">
                           {clean(t().surface)}
                         </WordButton>
-                        <span class="greek text-muted-foreground" lang="grc">
-                          ← {t().parts.map(p => p.lemma).join(" + ")}
+                        <span class="text-muted-foreground">
+                          ← <span {...scriptAttrs(t().surface)}>{t().parts.map(p => p.lemma).join(" + ")}</span>
                         </span>
-                        <For each={t().parts}>{p => <MorphBadges code={p.morphology} />}</For>
+                        <For each={t().parts}>{p => <MorphBadges code={p.morphology} strongsId={p.strongsId} />}</For>
                       </div>
                     )}
                   </Show>
                   <dl class="grid gap-2 text-sm sm:grid-cols-[8rem_1fr]">
-                    <dt class="text-muted-foreground">形態</dt>
-                    <dd class="leading-7">{item.formation}</dd>
-                    <dt class="text-muted-foreground">相（アスペクト）</dt>
-                    <dd class="leading-7">{item.aspect}</dd>
-                    <dt class="text-muted-foreground">時間的位置づけ</dt>
-                    <dd class="leading-7">{item.timeReference}</dd>
-                    <dt class="text-muted-foreground">他の時制との比較</dt>
-                    <dd class="leading-7">{item.comparison}</dd>
+                    <For each={item.fields}>
+                      {([label, value]) => (
+                        <>
+                          <dt class="text-muted-foreground">{label}</dt>
+                          <dd class="leading-7">{value}</dd>
+                        </>
+                      )}
+                    </For>
                   </dl>
                 </article>
               )}

@@ -10,7 +10,8 @@ import { eq } from "drizzle-orm";
 import { aiAnalyses, dataVersions, lemmas } from "~/db/schema";
 import { bookByCode, formatRef } from "~/lib/books";
 import { decodeMorphology, summarizeMorphology } from "~/lib/morph";
-import { AnalysisSchema, reconcileAnalysis, type Analysis } from "./analysis-schema";
+import { buildHebrewPrompt, HEBREW_PROMPT_VERSION, HEBREW_SYSTEM_PROMPT } from "./analysis-hebrew";
+import { AnalysisSchema, HebrewAnalysisSchema, reconcileAnalysis, reconcileHebrewAnalysis, type AnyAnalysis } from "./analysis-schema";
 import { getBsbVerses, TRANSLATION } from "./bsb";
 import type { Db } from "./db";
 import { getVerseTokens, type VerseTokens } from "./lexicon";
@@ -19,7 +20,7 @@ export const PROMPT_VERSION = "2026-10-27.3";
 const DEFAULT_MODEL = "claude-haiku-5-5";
 
 export type AnalysisResponse =
-  | { status: "ok"; analysis: Analysis; model: string; createdAt: string; cached: boolean; sourceVersion: string; promptVersion: string }
+  | { status: "ok"; analysis: AnyAnalysis; model: string; createdAt: string; cached: boolean; sourceVersion: string; promptVersion: string }
   | { status: "no_api_key" }
   | { status: "error"; message: string };
 
@@ -105,6 +106,12 @@ export async function sourceVersion(db: Db): Promise<string> {
   return `stepbible:${row?.version.slice(0, 12) ?? "unknown"}+${TRANSLATION}`;
 }
 
+/** OT verses use the Hebrew prompt, which is versioned separately so NT analyses stay cached. */
+const isOT = (book: string) => bookByCode(book)?.testament === "OT";
+export function promptVersionFor(book: string): string {
+  return isOT(book) ? HEBREW_PROMPT_VERSION : PROMPT_VERSION;
+}
+
 export function analysisModel(): string {
   return env.ANTHROPIC_MODEL || DEFAULT_MODEL;
 }
@@ -112,12 +119,13 @@ export function analysisModel(): string {
 export async function getCachedAnalysis(db: Db, req: AnalysisRequest): Promise<AnalysisResponse | null> {
   const model = analysisModel();
   const src = await sourceVersion(db);
-  const cacheKey = await sha256([formatRef(req.book, req.chapter, req.verse), req.strongsId, req.position, src, PROMPT_VERSION, model].join("|"));
+  const cacheKey = await sha256([formatRef(req.book, req.chapter, req.verse), req.strongsId, req.position, src, promptVersionFor(req.book), model].join("|"));
   const [row] = await db.select().from(aiAnalyses).where(eq(aiAnalyses.cacheKey, cacheKey));
   if (!row) return null;
+  const json = JSON.parse(row.analysisJson);
   return {
     status: "ok",
-    analysis: AnalysisSchema.parse(JSON.parse(row.analysisJson)),
+    analysis: isOT(req.book) ? HebrewAnalysisSchema.parse(json) : AnalysisSchema.parse(json),
     model: row.model,
     createdAt: row.createdAt,
     cached: true,
@@ -149,21 +157,44 @@ export async function runAnalysis(db: Db, req: AnalysisRequest): Promise<Analysi
 
   const model = analysisModel();
   const client = new Anthropic({ apiKey, maxRetries: 2, timeout: 120_000 });
-  let analysis: Analysis;
+  const ot = isOT(req.book);
+  let analysis: AnyAnalysis;
   try {
-    const response = await client.messages.parse({
-      model,
-      max_tokens: 16000,
-      output_config: { effort: "medium", format: zodOutputFormat(AnalysisSchema) },
-      system: SYSTEM_PROMPT,
-      messages: [{ role: "user", content: buildPrompt(verse, target, req.strongsId, english, { prev, next }) }],
-    });
-    if (response.stop_reason === "refusal") return { status: "error", message: "モデルが応答を拒否しました。" };
-    if (response.stop_reason === "max_tokens") return { status: "error", message: "応答が長すぎて途中で切れました。再生成してください。" };
-    // Server-side validation (parse() already validates; re-check to be explicit).
-    const parsed = AnalysisSchema.safeParse(response.parsed_output);
-    if (!parsed.success) return { status: "error", message: "解析結果の形式が不正でした。再生成してください。" };
-    analysis = reconcileAnalysis(parsed.data, verse, target.position);
+    const content = ot
+      ? buildHebrewPrompt(verse, target, req.strongsId, english, { prev, next })
+      : buildPrompt(verse, target, req.strongsId, english, { prev, next });
+    const request = { model, max_tokens: 16000, messages: [{ role: "user" as const, content }] };
+    // Server-side validation (parse() already validates; re-check to be explicit), then reconcile with the fixed data.
+    const fail = (stop: string | null) =>
+      stop === "refusal"
+        ? ({ status: "error", message: "モデルが応答を拒否しました。" } as const)
+        : stop === "max_tokens"
+          ? ({ status: "error", message: "応答が長すぎて途中で切れました。再生成してください。" } as const)
+          : null;
+    const invalid = { status: "error", message: "解析結果の形式が不正でした。再生成してください。" } as const;
+    if (ot) {
+      const response = await client.messages.parse({
+        ...request,
+        output_config: { effort: "medium", format: zodOutputFormat(HebrewAnalysisSchema) },
+        system: HEBREW_SYSTEM_PROMPT,
+      });
+      const f = fail(response.stop_reason);
+      if (f) return f;
+      const parsed = HebrewAnalysisSchema.safeParse(response.parsed_output);
+      if (!parsed.success) return invalid;
+      analysis = reconcileHebrewAnalysis(parsed.data, verse, target.position);
+    } else {
+      const response = await client.messages.parse({
+        ...request,
+        output_config: { effort: "medium", format: zodOutputFormat(AnalysisSchema) },
+        system: SYSTEM_PROMPT,
+      });
+      const f = fail(response.stop_reason);
+      if (f) return f;
+      const parsed = AnalysisSchema.safeParse(response.parsed_output);
+      if (!parsed.success) return invalid;
+      analysis = reconcileAnalysis(parsed.data, verse, target.position);
+    }
   } catch (e) {
     if (e instanceof Anthropic.AuthenticationError) return { status: "error", message: "Anthropic APIキーが無効です。設定を確認してください。" };
     if (e instanceof Anthropic.NotFoundError) return { status: "error", message: `モデル ${model} が見つかりません。ANTHROPIC_MODEL を確認してください。` };
@@ -174,7 +205,8 @@ export async function runAnalysis(db: Db, req: AnalysisRequest): Promise<Analysi
 
   const src = await sourceVersion(db);
   const ref = formatRef(req.book, req.chapter, req.verse);
-  const cacheKey = await sha256([ref, req.strongsId, req.position, src, PROMPT_VERSION, model].join("|"));
+  const promptVersion = promptVersionFor(req.book);
+  const cacheKey = await sha256([ref, req.strongsId, req.position, src, promptVersion, model].join("|"));
   const [lemma] = await db.select({ id: lemmas.id }).from(lemmas).where(eq(lemmas.strongsId, req.strongsId));
   const createdAt = new Date().toISOString();
   const values = {
@@ -183,11 +215,11 @@ export async function runAnalysis(db: Db, req: AnalysisRequest): Promise<Analysi
     selectedLemmaId: lemma?.id ?? null,
     selectedTokenPosition: req.position,
     model,
-    promptVersion: PROMPT_VERSION,
+    promptVersion,
     sourceVersion: src,
     analysisJson: JSON.stringify(analysis),
     createdAt,
   };
   await db.insert(aiAnalyses).values(values).onConflictDoUpdate({ target: aiAnalyses.cacheKey, set: values });
-  return { status: "ok", analysis, model, createdAt, cached: false, sourceVersion: src, promptVersion: PROMPT_VERSION };
+  return { status: "ok", analysis, model, createdAt, cached: false, sourceVersion: src, promptVersion };
 }

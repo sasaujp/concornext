@@ -8,6 +8,7 @@ import { getRequestEvent } from "solid-js/web";
 import { dataVersions } from "~/db/schema";
 import type { Testament } from "~/lib/books";
 import { analysisModel, getCachedAnalysis, PROMPT_VERSION, runAnalysis, type AnalysisRequest } from "./analysis";
+import { HEBREW_PROMPT_VERSION } from "./analysis-hebrew";
 import { listPasskeys, removePasskey, type SessionUser } from "./auth";
 import { getBsbVerses, type VerseRefInput } from "./bsb";
 import { getDb } from "./db";
@@ -133,7 +134,7 @@ export async function fetchAppInfo() {
   return {
     hasApiKey: !!env.ANTHROPIC_API_KEY,
     model: analysisModel(),
-    promptVersion: PROMPT_VERSION,
+    promptVersion: `NT ${PROMPT_VERSION} / OT ${HEBREW_PROMPT_VERSION}`,
     dataVersions: versions,
   };
 }

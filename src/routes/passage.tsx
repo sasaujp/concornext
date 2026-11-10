@@ -440,7 +440,7 @@ function PassageReader(props: { passage: Passage }) {
                         href={verseHref(sel().verse, { s: sel().token.parts[0].strongsId, w: sel().token.position, from: returnTo() })}
                         size="sm"
                       >
-                        <GraduationCap class="size-4" aria-hidden="true" /> {props.passage.book.testament === "OT" ? "この節を開く" : "この節を解析"}
+                        <GraduationCap class="size-4" aria-hidden="true" /> この節を解析
                       </Button>
                     </CardContent>
                   </Card>
