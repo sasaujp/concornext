@@ -1,10 +1,14 @@
 /**
  * Berean Standard Bible text from the Free Use Bible API (bible.helloao.org),
- * fetched one chapter at a time and cached in D1. Failures never block the Greek data:
+ * fetched one chapter at a time and cached in D1. Failures never block the original-language data:
  * callers get `null` for verses that could not be loaded.
+ *
+ * The BSB uses English verse numbers. OT references in ConcorNext use the Hebrew (MT) numbers, so they are
+ * converted with the English numbers TAHOT records per word (occurrences.eng_chapter / eng_verse); Psalm titles
+ * (MT verse 1, sometimes 1–2) are the BSB's "hebrew_subtitle", cached as English verse 0.
  */
 import { and, eq, inArray, sql } from "drizzle-orm";
-import { chapterFetches, verseCache } from "~/db/schema";
+import { chapterFetches, occurrences, verseCache } from "~/db/schema";
 import { bookByCode } from "~/lib/books";
 import type { Db } from "./db";
 
@@ -14,8 +18,8 @@ const FETCH_TIMEOUT_MS = 6000;
 /** Upper bound on chapter downloads per request (Workers subrequest budget). */
 const MAX_CHAPTER_FETCHES = 12;
 
-interface SimpleChapter {
-  chapter: { number: number; content: ({ type: "verse"; number: number; text: string } | { type: string })[] };
+export interface SimpleChapter {
+  chapter: { number: number; content: ({ type: "verse"; number: number; text: string } | { type: string; text?: unknown })[] };
 }
 
 export interface VerseRefInput {
@@ -41,10 +45,18 @@ async function fetchChapter(book: string, chapter: number): Promise<Map<number, 
     headers: { Accept: "application/json" },
   });
   if (!res.ok) throw new Error(`BSB API ${res.status} for ${usfm} ${chapter}`);
-  const json = (await res.json()) as SimpleChapter;
+  return parseChapter((await res.json()) as SimpleChapter);
+}
+
+/** Verse number → text for one chapter of the API's "simple" JSON. Psalm titles become verse 0. */
+export function parseChapter(json: SimpleChapter): Map<number, string> {
   const out = new Map<number, string>();
   for (const item of json.chapter.content) {
-    if (item.type === "verse" && "text" in item) out.set(item.number, item.text.trim());
+    if (item.type === "verse" && "number" in item && typeof item.text === "string") out.set(item.number, item.text.trim());
+    // Psalm titles: verse 0 in English numbering (TAHOT's Psa.51.0(51.1)).
+    else if (item.type === "hebrew_subtitle" && "text" in item && typeof item.text === "string") {
+      out.set(0, [out.get(0), item.text.trim()].filter(Boolean).join(" "));
+    }
   }
   return out;
 }
@@ -61,9 +73,43 @@ async function storeChapter(db: Db, book: string, chapter: number, verses: Map<n
   await db.batch(stmts as [(typeof stmts)[number], ...typeof stmts]);
 }
 
-export async function getBsbVerses(db: Db, refs: VerseRefInput[]): Promise<BsbResult> {
+/**
+ * English (BSB) verses for each requested verse: the same reference for the NT; for the OT the English
+ * verse(s) that the words of the MT verse belong to (e.g. MT Psa.51.3 → Psa.51.1, MT Mal.3.19 → Mal.4.1).
+ */
+async function englishRefs(db: Db, refs: VerseRefInput[]): Promise<Map<string, VerseRefInput[]>> {
+  const out = new Map<string, VerseRefInput[]>();
+  const otByBook = new Map<string, Set<number>>();
+  for (const r of refs) {
+    out.set(key(r), [r]);
+    if (bookByCode(r.book)?.testament === "OT") (otByBook.get(r.book) ?? otByBook.set(r.book, new Set()).get(r.book)!).add(r.chapter);
+  }
+  const wanted = new Set(refs.map(key));
+  await Promise.all(
+    [...otByBook].map(async ([code, chapters]) => {
+      const rows = await db
+        .selectDistinct({ chapter: occurrences.chapter, verse: occurrences.verse, engChapter: occurrences.engChapter, engVerse: occurrences.engVerse })
+        .from(occurrences)
+        .where(and(eq(occurrences.bookOrd, bookByCode(code)!.ord), inArray(occurrences.chapter, [...chapters])))
+        .orderBy(occurrences.engChapter, occurrences.engVerse);
+      const found = new Map<string, VerseRefInput[]>();
+      for (const r of rows) {
+        const k = `${code}.${r.chapter}.${r.verse}`;
+        if (!wanted.has(k) || r.engChapter === null || r.engVerse === null) continue;
+        (found.get(k) ?? found.set(k, []).get(k)!).push({ book: code, chapter: r.engChapter, verse: r.engVerse });
+      }
+      for (const [k, v] of found) out.set(k, v);
+    }),
+  );
+  return out;
+}
+
+export async function getBsbVerses(db: Db, requested: VerseRefInput[]): Promise<BsbResult> {
   const result: BsbResult = { verses: {}, error: null };
-  if (!refs.length) return result;
+  if (!requested.length) return result;
+
+  const english = await englishRefs(db, requested);
+  const refs = [...new Map([...english.values()].flat().map(r => [key(r), r])).values()];
 
   const chapters = new Map<string, { book: string; chapter: number }>();
   for (const r of refs) chapters.set(`${r.book}.${r.chapter}`, { book: r.book, chapter: r.chapter });
@@ -110,7 +156,10 @@ export async function getBsbVerses(db: Db, refs: VerseRefInput[]): Promise<BsbRe
     }),
   );
 
-  for (const r of refs) result.verses[key(r)] = texts.get(key(r)) ?? null;
+  for (const r of requested) {
+    const parts = (english.get(key(r)) ?? [r]).map(e => texts.get(key(e))).filter((t): t is string => !!t);
+    result.verses[key(r)] = parts.length ? parts.join(" ") : null;
+  }
   if (errors.length) result.error = errors.join("; ");
   return result;
 }

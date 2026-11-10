@@ -1,5 +1,6 @@
 import { For, Show } from "solid-js";
 import { summarizeMorphology, decodeMorphology } from "~/lib/morph";
+import { decodeHebrewMorphology, summarizeHebrewMorphology } from "~/lib/morph-hebrew";
 import type { Token } from "~/lib/queries";
 import { isHebrewStrongs, isHebrewText, scriptAttrs } from "~/lib/script";
 
@@ -8,7 +9,9 @@ export const hitMarker = (i: number) => CIRCLED[i] ?? `(${i + 1})`;
 
 function tokenTitle(t: Token) {
   const lines = t.parts.map(p => {
-    const morph = isHebrewStrongs(p.strongsId) ? p.morphology : summarizeMorphology(decodeMorphology(p.morphology));
+    const morph = isHebrewStrongs(p.strongsId)
+      ? summarizeHebrewMorphology(decodeHebrewMorphology(p.morphology))
+      : summarizeMorphology(decodeMorphology(p.morphology));
     return `${p.lemma} ${p.strongsId} — ${morph}${p.glossJa ?? p.gloss ? `「${p.glossJa ?? p.gloss}」` : ""}`;
   });
   if (t.ketiv) lines.push(`ケレ（ケティブ: ${t.ketiv}${t.ketivGloss ? `「${t.ketivGloss}」` : ""}）`);

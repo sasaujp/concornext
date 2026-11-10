@@ -1,4 +1,5 @@
 import { For, Show } from "solid-js";
+import { decodeHebrewMorphology, summarizeHebrewMorphology } from "~/lib/morph-hebrew";
 import type { WordSegment } from "~/lib/queries";
 import { cn } from "~/lib/utils";
 
@@ -21,7 +22,7 @@ export function SegmentBreakdown(props: { segments: WordSegment[]; highlight?: s
             <Show when={s.k !== "separator"} fallback={<span class="w-2" aria-hidden="true" />}>
               <span
                 class={cn(s.k === "root" ? "font-semibold" : "text-muted-foreground", s.k === "root" && props.highlight === s.s && "text-primary")}
-                title={[s.t, s.s, s.m].filter(Boolean).join(" · ")}
+                title={[s.t, s.s, s.m ? summarizeHebrewMorphology(decodeHebrewMorphology(s.m)) : null].filter(Boolean).join(" · ")}
               >
                 {s.h}
               </span>

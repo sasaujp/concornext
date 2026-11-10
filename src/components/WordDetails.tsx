@@ -7,6 +7,7 @@ import { MorphBadges } from "~/components/MorphBadges";
 import { NoteEditor } from "~/components/NoteEditor";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
+import { decodeHebrewMorphology, summarizeHebrewMorphology } from "~/lib/morph-hebrew";
 import { lemmaDetailQuery, type Token } from "~/lib/queries";
 import { bareWord, scriptAttrs } from "~/lib/script";
 import { lemmaHref } from "~/lib/url";
@@ -23,9 +24,25 @@ export function WordDetails(props: { token: Token; onLemma?: (strongsId: string)
     <div class="space-y-3 text-sm">
       <Show when={props.token.segments}>
         {segs => (
-          <div class="flex flex-wrap items-baseline gap-2">
-            <span class="text-muted-foreground">語の構成</span>
-            <SegmentBreakdown segments={segs()} class="text-xl" />
+          <div class="space-y-1">
+            <div class="flex flex-wrap items-baseline gap-2">
+              <span class="text-muted-foreground">語の構成</span>
+              <SegmentBreakdown segments={segs()} class="text-xl" />
+            </div>
+            {/* Prefixes and suffixes (the root's grammar is shown with its lemma below). */}
+            <ul class="space-y-0.5 text-xs">
+              <For each={segs().filter(s => s.k === "affix")}>
+                {s => (
+                  <li class="flex flex-wrap items-baseline gap-2">
+                    <span class="hebrew text-base" lang="he" dir="rtl">
+                      {s.h}
+                    </span>
+                    <span>{s.m ? summarizeHebrewMorphology(decodeHebrewMorphology(s.m)) : ""}</span>
+                    <code class="text-muted-foreground">{s.s}</code>
+                  </li>
+                )}
+              </For>
+            </ul>
           </div>
         )}
       </Show>

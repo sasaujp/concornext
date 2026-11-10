@@ -378,7 +378,18 @@ function PassageReader(props: { passage: Passage }) {
                             <Show when={showEnglish()}>
                               <Suspense>
                                 <Show when={bsb()?.verses[`${v.book}.${v.chapter}.${v.verse}`]}>
-                                  {text => <p class="text-sm leading-relaxed text-muted-foreground">{text()}</p>}
+                                  {text => {
+                                    // An MT verse can share its English verse with the previous one (e.g. a Psalm title over MT 1–2).
+                                    const prev = () => {
+                                      const p = d().verses[i() - 1];
+                                      return p ? bsb()?.verses[`${p.book}.${p.chapter}.${p.verse}`] : null;
+                                    };
+                                    return (
+                                      <Show when={text() !== prev()} fallback={<p class="text-xs text-muted-foreground">（英訳は前の節と同じ）</p>}>
+                                        <p class="text-sm leading-relaxed text-muted-foreground">{text()}</p>
+                                      </Show>
+                                    );
+                                  }}
                                 </Show>
                               </Suspense>
                             </Show>
